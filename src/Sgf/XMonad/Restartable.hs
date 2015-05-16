@@ -15,6 +15,7 @@ module Sgf.XMonad.Restartable
     , stopP'
     , restartP
     , restartP'
+    , traceP
     , Program
     , progPid
     , progBin
@@ -115,6 +116,11 @@ stopP               = withProcess stopP'
 restartP :: RestartClass a => a -> X ()
 restartP            = withProcess restartP'
 
+-- Print all tracked in Extensible State programs with given type.
+traceP :: RestartClass a => a -> X ()
+traceP x           = do
+    xs <- XS.gets (viewA processList `asTypeOf` const [x])
+    mapM_ (trace . show) xs
 
 -- Default program (for use in newtype-s).
 data Program        = Program
