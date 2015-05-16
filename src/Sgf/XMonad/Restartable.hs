@@ -9,14 +9,17 @@ module Sgf.XMonad.Restartable
     , ProcessClass (..)
     , withProcess
     , RestartClass (..)
-    , defaultRunP
-    , defaultKillP
     , startP
     , startP'
     , stopP
     , stopP'
     , restartP
     , restartP'
+    , Program
+    , progPid
+    , progBin
+    , progArgs
+    , defaultProgram
     )
   where
 
@@ -69,14 +72,7 @@ class ProcessClass a => RestartClass a where
     -- i should either set Pid to Nothing, or wait until it really terminates
     -- (defaultKillP does first).
     killP :: a -> X a
-    killP             = defaultKillP
-
-defaultRunP :: ProcessClass a => FilePath -> [String] -> a -> X a
-defaultRunP x xs z  = do
-                        p <- spawnPID' x xs
-                        return (setA pidL (Just p) z)
-defaultKillP :: ProcessClass a => a -> X a
-defaultKillP        = modifyAA pidL $ \mp -> do
+    killP           = modifyAA pidL $ \mp -> do
                         whenJust mp (liftIO . signalProcess sigTERM)
                         return Nothing
 
@@ -118,4 +114,39 @@ stopP               = withProcess stopP'
 
 restartP :: RestartClass a => a -> X ()
 restartP            = withProcess restartP'
+
+
+-- Default program (for use in newtype-s).
+data Program        = Program
+                        { _progPid  :: Maybe ProcessID
+                        , _progBin  :: FilePath
+                        , _progArgs :: [String]
+                        }
+  deriving (Show, Read, Typeable)
+progPid :: LensA Program (Maybe ProcessID)
+progPid f z@(Program {_progPid = x})
+                    = fmap (\x' -> z{_progPid = x'}) (f x)
+progBin :: LensA Program FilePath
+progBin f z@(Program {_progBin = x})
+                    = fmap (\x' -> z{_progBin = x'}) (f x)
+progArgs :: LensA Program [String]
+progArgs f z@(Program {_progArgs = x})
+                    = fmap (\x' -> z{_progArgs = x'}) (f x)
+defaultProgram :: Program
+defaultProgram      = Program
+                        { _progPid = Nothing
+                        , _progBin = ""
+                        , _progArgs = []
+                        }
+
+-- I assume only one instance of each program by default. I.e. different
+-- programs should have different types.
+instance Eq Program where
+    _ == _          = True
+instance ProcessClass Program where
+    pidL            = progPid
+instance RestartClass Program where
+    runP x          = do
+                        p <- spawnPID' (viewA progBin x) (viewA progArgs x)
+                        return (setA pidL (Just p) x)
 
