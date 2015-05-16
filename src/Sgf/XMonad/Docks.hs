@@ -1,10 +1,16 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Sgf.XMonad.Docks
     ( DockConfig
     , addDock
     , handleDocks
     , DockClass (..)
+    , Dock
+    , dockBin
+    , dockArgs
+    , defaultDock
     , ppCurrentL
     , ppVisibleL
     , ppHiddenL
@@ -90,6 +96,21 @@ handleDocks t ds cf = addDockKeys $ cf
 class ProcessClass a => DockClass a where
     dockToggleKey   :: a -> Maybe (ButtonMask, KeySym)
     ppL             :: LensA a (Maybe PP)
+
+-- Default dock (for use in newtype-s).
+newtype Dock        = Dock Program
+  deriving (Eq, Read, Show, Typeable, ProcessClass, RestartClass)
+dockProgram :: LensA Dock Program
+dockProgram f (Dock x)  = fmap (\x' -> Dock x') (f x)
+dockBin :: LensA Dock FilePath
+dockBin             = dockProgram . progBin
+dockArgs :: LensA Dock [String]
+dockArgs            = dockProgram . progArgs
+defaultDock :: Dock
+defaultDock         = Dock defaultProgram
+instance DockClass Dock where
+    dockToggleKey   = const Nothing
+    ppL             = nothingL
 
 toggleAllDocks :: (ButtonMask, KeySym) -> XConfig l
                -> [((ButtonMask, KeySym), X ())]
