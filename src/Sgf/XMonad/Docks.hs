@@ -48,13 +48,16 @@ import Sgf.XMonad.Restartable
 
 
 -- Store some records of XConfig modified for particular dock.
+-- FIXME: DockConfig should inherit something from ProgConfig . But then
+-- DockClass must require RestartClass .
 data DockConfig l   = DockConfig
-                        { dockLogHook :: X ()
+                        { dockLogHook     :: X ()
                         , dockStartupHook :: X ()
-                        , dockKeys :: XConfig l -> [((ButtonMask, KeySym), X ())]
+                        , dockKeys        :: XConfig l
+                                             -> [((ButtonMask, KeySym), X ())]
                         }
 
--- Create DockConfig from DockClass instance.
+-- Create DockConfig for DockClass instance.
 addDock :: (RestartClass a, DockClass a, LayoutClass l Window) =>
                a -> DockConfig l
 addDock d           = DockConfig
