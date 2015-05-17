@@ -95,7 +95,9 @@ handleDocks t ds cf = addDockKeys $ cf
 
 class ProcessClass a => DockClass a where
     dockToggleKey   :: a -> Maybe (ButtonMask, KeySym)
+    dockToggleKey   = const Nothing
     ppL             :: LensA a (Maybe PP)
+    ppL             = nothingL
 
 -- Default dock (for use in newtype-s).
 newtype Dock        = Dock Program
@@ -109,8 +111,7 @@ dockArgs            = dockProgram . progArgs
 defaultDock :: Dock
 defaultDock         = Dock defaultProgram
 instance DockClass Dock where
-    dockToggleKey   = const Nothing
-    ppL             = nothingL
+
 
 toggleAllDocks :: (ButtonMask, KeySym) -> XConfig l
                -> [((ButtonMask, KeySym), X ())]
