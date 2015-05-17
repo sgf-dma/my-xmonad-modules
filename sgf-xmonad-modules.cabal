@@ -1,0 +1,49 @@
+
+name:               sgf-xmonad-modules
+-- The package version.  See the Haskell package versioning policy (PVP) 
+-- for standards guiding when and how versions should be incremented.
+-- http://www.haskell.org/haskellwiki/Package_versioning_policy
+-- PVP summary:     +-+------- breaking API changes
+--                  | | +----- non-breaking API additions
+--                  | | | +--- code changes with no API change
+version:            0.2.0.0
+
+synopsis:           sgf's xmonad config
+-- description:         
+-- license:             
+--license-file:        LICENSE
+
+-- author:              
+maintainer:          sgf.dma@gmail.com
+-- copyright:           
+
+category:            Graphics
+build-type:          Simple
+cabal-version:       >= 1.8
+
+library
+    exposed-modules:    Sgf.XMonad.Docks
+                        Sgf.XMonad.Docks.Xmobar
+                        Sgf.XMonad.Restartable
+                        Sgf.XMonad.VNC
+                        Sgf.XMonad.Util.Run
+                        Sgf.XMonad.Util.EntryHelper
+                        Sgf.XMonad.Util.EZConfig
+                        Sgf.Control.Lens
+    other-modules:      Sgf.Data.List
+                        Sgf.Control.Exception
+
+    build-depends:      base                == 4.5.*
+                        , mtl               == 2.1.*
+                        , transformers      == 0.3.*
+                        , containers        == 0.4.*
+                        , filepath          == 1.3.*
+                        , directory         == 1.1.*
+                        , unix              == 2.5.*
+                        , process           == 1.1.*
+                        , xmonad            == 0.10.*
+                        , xmonad-contrib    == 0.10.*
+                        , xmonad-entryhelper    == 0.1.*
+    hs-source-dirs:     src
+    ghc-options:        -Wall
+
