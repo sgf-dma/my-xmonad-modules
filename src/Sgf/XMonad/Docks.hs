@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Sgf.XMonad.Docks
@@ -7,10 +6,6 @@ module Sgf.XMonad.Docks
     , addDock
     , handleDocks
     , DockClass (..)
-    , Dock
-    , dockBin
-    , dockArgs
-    , defaultDock
     , ppCurrentL
     , ppVisibleL
     , ppHiddenL
@@ -101,20 +96,6 @@ class ProcessClass a => DockClass a where
     dockToggleKey   = const Nothing
     ppL             :: LensA a (Maybe PP)
     ppL             = nothingL
-
--- Default dock (for use in newtype-s).
-newtype Dock        = Dock Program
-  deriving (Eq, Read, Show, Typeable, ProcessClass, RestartClass)
-dockProgram :: LensA Dock Program
-dockProgram f (Dock x)  = fmap (\x' -> Dock x') (f x)
-dockBin :: LensA Dock FilePath
-dockBin             = dockProgram . progBin
-dockArgs :: LensA Dock [String]
-dockArgs            = dockProgram . progArgs
-defaultDock :: Dock
-defaultDock         = Dock defaultProgram
-instance DockClass Dock where
-
 
 toggleAllDocks :: (ButtonMask, KeySym) -> XConfig l
                -> [((ButtonMask, KeySym), X ())]

@@ -20,7 +20,6 @@ module Sgf.XMonad.Restartable
     , addProg
     , handleProgs
     , Program
-    , progPid
     , progBin
     , progArgs
     , defaultProgram
