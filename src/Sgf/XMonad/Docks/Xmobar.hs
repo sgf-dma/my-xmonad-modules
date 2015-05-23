@@ -10,6 +10,7 @@ module Sgf.XMonad.Docks.Xmobar
     , xmobarPP
     , xmobarToggle
     , defaultXmobar
+    , defaultXmobarPP
     )
   where
 
@@ -96,18 +97,18 @@ defaultXmobar'      = Xmobar
                         }
 
 -- Default expected by user's of Xmobar type. Usually it should be used
--- instead of type default. Particularly, this ensures, that ppOutput will be
--- set to ignore output untill Xmobar's startP starts xmobar process and
--- initializes it with corresponding pipe. Otherwise, status information may
--- be output to ~/.xsession-errors (where xmonad's stdout will go). And this
--- ensures, that all Lens laws hold (see xmobarConf Lens).
--- All Xmobar values should be created by overwriting default (this or type
--- default) through Lenses (PP lenses provided by XMonad.Docks). Here i use
--- Lenses over type default for ensuring correct xmobarConf initialization.
+-- instead of type default. Particularly, this ensures, that all Lens laws
+-- hold (see xmobarConf Lens).  All Xmobar values should be created by
+-- overwriting default (this or type default) through Lenses (PP lenses
+-- provided by XMonad.Docks). Here i use Lenses over type default for ensuring
+-- correct xmobarConf initialization.
+-- Also, note, that i should not initialize PP in defaultXmobar, otherwise
+-- runP will open pipe to xmobar and xmonad blocks, when pipe fills up. Thus,
+-- if user uses StdinReader in xmobarrc, he should set PP explicitly (by
+-- overwriting defaultXmobarPP).
 defaultXmobar :: Xmobar
 defaultXmobar       = setA (xmobarProg . progBin) "xmobar"
                         . setA xmobarConf ".xmobarrc"
-                        . setA xmobarPP (Just defaultXmobarPP)
                         $ defaultXmobar'
 
 -- Show and Read instances omiting some non-showable/non-readable records.
