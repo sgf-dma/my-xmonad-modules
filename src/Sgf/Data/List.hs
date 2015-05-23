@@ -30,7 +30,7 @@ mapWhenM p f        = mapM (\x -> if p x then f x else return x)
 type ReadM a        = StateT String [] a
 
 -- Lift ReadS to ReadM .
-liftRead :: Read a => (ReadS a) -> ReadM a
+liftRead :: Read a => ReadS a -> ReadM a
 liftRead h = do
     r0 <- get
     (x, r1) <- lift (h r0)

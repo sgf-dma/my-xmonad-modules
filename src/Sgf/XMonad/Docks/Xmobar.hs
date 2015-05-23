@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Sgf.XMonad.Docks.Xmobar
     ( Xmobar
@@ -11,7 +10,7 @@ module Sgf.XMonad.Docks.Xmobar
     , xmobarPP
     , xmobarToggle
     , defaultXmobar
-    , xmobarsList
+    , defaultXmobarPP
     )
   where
 
@@ -98,18 +97,18 @@ defaultXmobar'      = Xmobar
                         }
 
 -- Default expected by user's of Xmobar type. Usually it should be used
--- instead of type default. Particularly, this ensures, that ppOutput will be
--- set to ignore output untill Xmobar's startP starts xmobar process and
--- initializes it with corresponding pipe. Otherwise, status information may
--- be output to ~/.xsession-errors (where xmonad's stdout will go). And this
--- ensures, that all Lens laws hold (see xmobarConf Lens).
--- All Xmobar values should be created by overwriting default (this or type
--- default) through Lenses (PP lenses provided by XMonad.Docks). Here i use
--- Lenses over type default for ensuring correct xmobarConf initialization.
+-- instead of type default. Particularly, this ensures, that all Lens laws
+-- hold (see xmobarConf Lens).  All Xmobar values should be created by
+-- overwriting default (this or type default) through Lenses (PP lenses
+-- provided by XMonad.Docks). Here i use Lenses over type default for ensuring
+-- correct xmobarConf initialization.
+-- Also, note, that i should not initialize PP in defaultXmobar, otherwise
+-- runP will open pipe to xmobar and xmonad blocks, when pipe fills up. Thus,
+-- if user uses StdinReader in xmobarrc, he should set PP explicitly (by
+-- overwriting defaultXmobarPP).
 defaultXmobar :: Xmobar
 defaultXmobar       = setA (xmobarProg . progBin) "xmobar"
                         . setA xmobarConf ".xmobarrc"
-                        . setA xmobarPP (Just defaultXmobarPP)
                         $ defaultXmobar'
 
 -- Show and Read instances omiting some non-showable/non-readable records.
@@ -148,8 +147,8 @@ instance ProcessClass Xmobar where
 instance RestartClass Xmobar where
     runP x          = userCodeDef x $ do
         xcf <- absXmobarConf
-        liftIO $ (doesFileExist' xcf) `catch` (throw . XmobarConfException)
-        case (viewA xmobarPP x) of
+        liftIO $ doesFileExist' xcf `catch` (throw . XmobarConfException)
+        case viewA xmobarPP x of
           Just _    -> do
             (h, p) <- spawnPipe' "xmobar" (viewA (xmobarProg . progArgs) x)
             return
@@ -164,7 +163,7 @@ instance RestartClass Xmobar where
         absXmobarConf   = liftIO $ do
           d <- getHomeDirectory
           let cf = viewA xmobarConf x
-          if (isRelative cf) then return (d </> cf) else return cf
+          if isRelative cf then return (d </> cf) else return cf
     -- I need to reset pipe (to ignore output), because though process got
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.
@@ -179,8 +178,4 @@ data XmobarException    = XmobarConfException FileException
 instance Show XmobarException where
     show (XmobarConfException x) = "Xmobar config: " ++ show x
 instance Exception XmobarException where
-
--- Lens for obtaining list of all Xmobars stored in extensible state.
-xmobarsList :: LensA (ListP Xmobar) [Xmobar]
-xmobarsList         = processList
 
