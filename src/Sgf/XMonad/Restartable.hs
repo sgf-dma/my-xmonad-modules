@@ -107,9 +107,9 @@ class ProcessClass a => RestartClass a where
 -- Based on doesPidProgRun by Thomas Bach
 -- (https://github.com/fuzzy-id/my-xmonad) .
 refreshPid :: (MonadIO m, ProcessClass a) => a -> m a
-refreshPid x        = case (viewA pidL x) of
+refreshPid x        = case viewA pidL x of
     Nothing -> return x
-    Just p  -> liftIO $ do
+    Just p  -> liftIO $
       either (const (setA pidL Nothing x)) (const x)
       `fmap` (try $ getProcessPriority p :: IO (Either IOException Int))
 
@@ -118,7 +118,7 @@ refreshPid x        = case (viewA pidL x) of
 startP' :: RestartClass a => a -> X a
 startP' x           = do
   x' <- refreshPid x
-  case (viewA pidL x') of
+  case viewA pidL x' of
     Nothing   -> runP x'
     Just _    -> return x'
 
@@ -136,7 +136,7 @@ restartP'           = startP' <=< stopP'
 toggleP' :: RestartClass a => a -> X a
 toggleP' x          = do
   x' <- refreshPid x
-  case (viewA pidL x') of
+  case viewA pidL x' of
     Nothing   -> runP x'
     Just _    -> killP x'
 
@@ -197,7 +197,7 @@ manageProg y        = do
     mp <- pid
     xs <- liftX $ getProcesses y
     if mp `elem` map (viewA pidL) xs
-      then Just <$> (manageP y)
+      then Just <$> manageP y
       else return Nothing
 
 -- Merge ProgConfig-s into existing XConfig properly.

@@ -147,8 +147,8 @@ instance ProcessClass Xmobar where
 instance RestartClass Xmobar where
     runP x          = userCodeDef x $ do
         xcf <- absXmobarConf
-        liftIO $ (doesFileExist' xcf) `catch` (throw . XmobarConfException)
-        case (viewA xmobarPP x) of
+        liftIO $ doesFileExist' xcf `catch` (throw . XmobarConfException)
+        case viewA xmobarPP x of
           Just _    -> do
             (h, p) <- spawnPipe' "xmobar" (viewA (xmobarProg . progArgs) x)
             return
@@ -163,7 +163,7 @@ instance RestartClass Xmobar where
         absXmobarConf   = liftIO $ do
           d <- getHomeDirectory
           let cf = viewA xmobarConf x
-          if (isRelative cf) then return (d </> cf) else return cf
+          if isRelative cf then return (d </> cf) else return cf
     -- I need to reset pipe (to ignore output), because though process got
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.

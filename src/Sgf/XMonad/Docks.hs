@@ -166,7 +166,7 @@ getStrut w = do
 docksEventHook :: Event -> X All
 docksEventHook e = do
     when (et == mapNotify || et == unmapNotify) $
-        whenX ((not `fmap` (isClient w)) <&&> runQuery checkDock w) refresh
+        whenX ((not `fmap` isClient w) <&&> runQuery checkDock w) refresh
     return (All True)
     where w  = ev_window e
           et = ev_event_type e
@@ -180,7 +180,7 @@ dockLog             = withProcess $ \x -> do
 -- neither Show nor Read instance for PP), i need to reinitialize them each
 -- time at the start (in startupHook).
 reinitPP :: DockClass a => a -> X ()
-reinitPP y          = withProcess (\x -> return (setA ppL (viewA ppL y) x)) y
+reinitPP y          = withProcess (return . setA ppL (viewA ppL y)) y
 
 
 -- Lenses to PP.
@@ -199,10 +199,10 @@ ppHiddenNoWindowsL f z@(PP {ppHiddenNoWindows = x})
 ppUrgentL :: LensA PP (WorkspaceId -> String)
 ppUrgentL f z@(PP {ppUrgent = x})
                     = fmap (\x' -> z{ppUrgent = x'}) (f x)
-ppSepL :: LensA PP (String)
+ppSepL :: LensA PP String
 ppSepL f z@(PP {ppSep = x})
                     = fmap (\x' -> z{ppSep = x'}) (f x)
-ppWsSepL :: LensA PP (String)
+ppWsSepL :: LensA PP String
 ppWsSepL f z@(PP {ppWsSep = x})
                     = fmap (\x' -> z{ppWsSep = x'}) (f x)
 ppTitleL :: LensA PP (String -> String)
@@ -217,7 +217,7 @@ ppOrderL f z@(PP {ppOrder = x})
 ppSortL :: LensA PP (X ([WindowSpace] -> [WindowSpace]))
 ppSortL f z@(PP {ppSort = x})
                     = fmap (\x' -> z{ppSort = x'}) (f x)
-ppExtrasL :: LensA PP ([X (Maybe String)])
+ppExtrasL :: LensA PP [X (Maybe String)]
 ppExtrasL f z@(PP {ppExtras = x})
                     = fmap (\x' -> z{ppExtras = x'}) (f x)
 ppOutputL :: LensA PP (String -> IO ())
