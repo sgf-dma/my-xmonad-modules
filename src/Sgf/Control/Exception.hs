@@ -7,6 +7,7 @@ module Sgf.Control.Exception
   where
 
 import Data.Typeable
+import Control.Monad
 import Control.Monad.IO.Class
 import Control.Exception
 import System.Directory
@@ -21,5 +22,5 @@ instance Exception FileException where
 doesFileExist' :: MonadIO m => FilePath -> m ()
 doesFileExist' x    = do
     b <- liftIO (doesFileExist x)
-    if b then return ()  else throw (FileDoesNotExist x)
+    unless b $ throw (FileDoesNotExist x)
 
