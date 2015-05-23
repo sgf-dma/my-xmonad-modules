@@ -211,10 +211,10 @@ handleProgs ps cf   = addProgKeys $ cf
   where
     -- Join keys for launching programs.
     --addProgKeys :: XConfig l1 -> XConfig l1
-    -- FIXME: mapM !
     addProgKeys     = additionalKeys <*> (concat <$> mapM progKeys ps)
 
--- Default program (for use in newtype-s).
+-- Default program providing set of fields needed for regular program and
+-- default runP implementation.
 data Program        = Program
                         { _progPid  :: Maybe ProcessID
                         , _progBin  :: FilePath
