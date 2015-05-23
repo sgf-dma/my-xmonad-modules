@@ -31,11 +31,11 @@ import System.Posix.Types (ProcessID)
 
 import XMonad
 import XMonad.Hooks.ManageDocks hiding (docksEventHook)
+import XMonad.Hooks.ManageHelpers (pid)
 import XMonad.Hooks.DynamicLog
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Util.EZConfig (additionalKeys)
 import XMonad.Util.WindowProperties (getProp32s)
-import XMonad.Util.XUtils (fi)
 import Foreign.C.Types (CLong)
 
 import Sgf.Control.Lens
@@ -132,20 +132,13 @@ toggleProcessStruts = withProcess $ \x -> do
   where
     -- Toggle all struts, which specified PID have.
     togglePidStruts :: ProcessID -> X ()
-    togglePidStruts pid = withDisplay $ \dpy -> do
+    togglePidStruts cPid = withDisplay $ \dpy -> do
         rootw <- asks theRoot
         (_, _, wins) <- io $ queryTree dpy rootw
-        ws <- filterM winPid wins
+        ws <- filterM (\w -> maybe False (== cPid) <$> runQuery pid w) wins
         ss <- mapM getStrut ws
         let ds = nub . map (\(s, _, _, _) -> s) . concat $ ss
         mapM_ (sendMessage . ToggleStrut) ds
-      where
-        winPid :: Window -> X Bool
-        winPid w        = do
-            mp <- getProp32s "_NET_WM_PID" w
-            return $ case mp of
-              Just [pid'] -> pid == fi pid'
-              _           -> False
 
 -- Copy from XMonad.Hooks.ManageDocks .
 type Strut = (Direction2D, CLong, CLong, CLong)
