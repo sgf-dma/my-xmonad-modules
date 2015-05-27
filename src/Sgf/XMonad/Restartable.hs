@@ -6,6 +6,7 @@ module Sgf.XMonad.Restartable
     , ProcessClass (..)
     , withProcess
     , getProcesses
+    , findWins
     , RestartClass (..)
     , startP
     , startP'
@@ -76,6 +77,19 @@ withProcess f y     = modifyXS $ modifyAA processList $
 -- process.
 getProcesses :: ProcessClass a => a -> X [a]
 getProcesses y      = XS.gets (viewA processList `asTypeOf` const [y])
+
+-- Find all windows, which have pid of given ProcessClass instance in
+-- _NET_WM_PID property.
+findWins :: ProcessClass a => a -> X [Window]
+findWins x          = withDisplay $ \dpy -> do
+    rootw <- asks theRoot
+    (_, _, wins) <- io $ queryTree dpy rootw
+    -- If process is not running (and pid is Nothing in pidL), i should
+    -- not search for windows, because `pid` also may return Nothing for
+    -- windows, which does not set _NET_WM_PID property. Thus, it'll
+    -- appear, that not running process will still have windows.
+    flip (maybe (return [])) (viewA pidL x) $ \px ->
+      filterM (\w -> maybe False (== px) <$> runQuery pid w) wins
 
 class ProcessClass a => RestartClass a where
     -- Run a program.

@@ -27,11 +27,9 @@ import Data.List
 import Data.Monoid
 import Control.Monad.State
 import Control.Applicative
-import System.Posix.Types (ProcessID)
 
 import XMonad
 import XMonad.Hooks.ManageDocks hiding (docksEventHook)
-import XMonad.Hooks.ManageHelpers (pid)
 import XMonad.Hooks.DynamicLog
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Util.EZConfig (additionalKeys)
@@ -124,21 +122,14 @@ toggleDock x (XConfig {modMask = m}) = maybeToList $ do
     (mk, k) <- dockToggleKey x
     return ((m .|. mk, k), toggleProcessStruts x)
 
--- Toggle struts for any ProcessClass instance.
+-- Toggle struts for ProcessClass instance.
 toggleProcessStruts :: ProcessClass a => a -> X ()
 toggleProcessStruts = withProcess $ \x -> do
-    maybe (return ()) togglePidStruts (viewA pidL x)
+    ws <- findWins x
+    ss <- mapM getStrut ws
+    let ds = nub . map (\(s, _, _, _) -> s) . concat $ ss
+    mapM_ (sendMessage . ToggleStrut) ds
     return x
-  where
-    -- Toggle all struts, which specified PID have.
-    togglePidStruts :: ProcessID -> X ()
-    togglePidStruts cPid = withDisplay $ \dpy -> do
-        rootw <- asks theRoot
-        (_, _, wins) <- io $ queryTree dpy rootw
-        ws <- filterM (\w -> maybe False (== cPid) <$> runQuery pid w) wins
-        ss <- mapM getStrut ws
-        let ds = nub . map (\(s, _, _, _) -> s) . concat $ ss
-        mapM_ (sendMessage . ToggleStrut) ds
 
 -- Copy from XMonad.Hooks.ManageDocks .
 type Strut = (Direction2D, CLong, CLong, CLong)
