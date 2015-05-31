@@ -178,6 +178,7 @@ instance RestartClass Xmobar where
     -- not check process existence - just logs according to PP, if any.
     killP           = modifyAA xmobarProg killP
                         . modifyA (xmobarPP . maybeL) resetPipe
+    doLaunchP       = restartP
     launchKey       = viewA xmobarLaunch
 instance DockClass Xmobar where
     dockToggleKey   = viewA xmobarToggle
