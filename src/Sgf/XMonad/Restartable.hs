@@ -5,6 +5,7 @@ module Sgf.XMonad.Restartable
     ( modifyXS
     , ProcessClass (..)
     , withProcess
+    , getProcess
     , getProcesses
     , findWins
     , RestartClass (..)
@@ -17,8 +18,9 @@ module Sgf.XMonad.Restartable
     , toggleP
     , toggleP'
     , traceP
-    , ProgConfig
+    , ProgConfig (..)
     , addProg
+    , launchProg
     , handleProgs
     , Program
     , progBin
@@ -27,6 +29,7 @@ module Sgf.XMonad.Restartable
     )
   where
 
+import Data.List
 import Data.Maybe (maybeToList)
 import Control.Applicative
 import Control.Monad
@@ -73,6 +76,10 @@ withProcess :: ProcessClass a => (a -> X a) -> a -> X ()
 withProcess f y     = modifyXS $ modifyAA processList $
                         mapWhenM (== y) f . insertUniq y
 
+-- Find value (process) equal to given process in Extensible State.
+getProcess :: ProcessClass a => a -> X (Maybe a)
+getProcess y        = XS.gets (find (== y) . viewA processList)
+
 -- Get all processes stored in Extensible State with the type of given
 -- process.
 getProcesses :: ProcessClass a => a -> X [a]
@@ -110,7 +117,7 @@ class ProcessClass a => RestartClass a where
     -- restarts, but if i use startP here, program will only be restarted, if
     -- it wasn't running at xmonad restart.
     doLaunchP :: a -> X ()
-    doLaunchP       = restartP
+    doLaunchP       = startP
     -- Whether to start program from startupHook ?
     launchAtStartup  :: a -> Bool
     launchAtStartup = const True
@@ -176,6 +183,7 @@ traceP y            = getProcesses y >>= mapM_ (trace . show)
 -- Store some records of XConfig modified for particular program.
 data ProgConfig l   = ProgConfig
                         { progManageHook  :: MaybeManageHook
+                        , progLogHook     :: X ()
                         , progStartupHook :: X ()
                         , progKeys        :: XConfig l
                                              -> [((ButtonMask, KeySym), X ())]
@@ -186,6 +194,8 @@ addProg :: (RestartClass a, LayoutClass l Window) => a -> ProgConfig l
 addProg x           = ProgConfig
                         -- Create MaybeManageHook from program's ManageHook.
                         { progManageHook  = manageProg x
+                        -- Programs does not write to log.
+                        , progLogHook     = return ()
                         -- Execute doLaunchP at startup.
                         , progStartupHook = when (launchAtStartup x)
                                                  (doLaunchP x)
@@ -204,31 +214,40 @@ launchProg x (XConfig {modMask = m}) = maybeToList $ do
 -- same type stored in Extensible State.
 manageProg :: RestartClass a => a -> MaybeManageHook
 manageProg y        = do
-    -- Sometimes `pid` returns Nothing even though process has started and
-    -- Extensible State contains correct pid. Probably, i should wait for a
-    -- bit.
-    liftIO $ threadDelay 500000
     mp <- pid
-    xs <- liftX $ getProcesses y
-    if mp `elem` map (viewA pidL) xs
+    mx <- liftX $ getProcess y
+    if mp == maybe Nothing (viewA pidL) mx
       then Just <$> manageP y
       else return Nothing
 
 -- Merge ProgConfig-s into existing XConfig properly.
 handleProgs :: LayoutClass l Window => [ProgConfig l] -> XConfig l -> XConfig l
 handleProgs ps cf   = addProgKeys $ cf
-      -- Run only one matched program's ManageHook for any Window.
-      { manageHook = composeOne (map progManageHook ps) <+> manageHook cf
-      -- Restart all programs at xmonad startup.
-      , startupHook = mapM_ progStartupHook ps >> startupHook cf
-      }
+    -- Run only one, matched program's ManageHook for any Window.  Program
+    -- ManageHook-s may use `pid` function, which requests _NET_WM_PID window
+    -- property, and sometimes it returns Nothing even though process has
+    -- started and Extensible State contains correct pid. Probably, i should
+    -- wait for a bit.
+    { manageHook    = do
+                        liftIO $ threadDelay 300000
+                        composeOne (map progManageHook ps) <+> manageHook cf
+    -- Restart all programs at xmonad startup.
+    , startupHook   = mapM_ progStartupHook ps >> startupHook cf
+    -- Log to all programs.
+    , logHook       = mapM_ progLogHook ps >> logHook cf
+    }
   where
     -- Join keys for launching programs.
     --addProgKeys :: XConfig l1 -> XConfig l1
     addProgKeys     = additionalKeys <*> (concat <$> mapM progKeys ps)
 
 -- Default program providing set of fields needed for regular program and
--- default runP implementation.
+-- default runP implementation.  Note: when using newtypes around Program
+-- never define `doLaunchP (p x) = doLaunchP x`, because in that case value of
+-- type Program will be added to Extensible State,   but *not* value of type
+-- (p Program) (i.e. newtype). Instead, i should define `doLaunchP` for
+-- newtype p directly, e.g. `doLaunchP = restartP` (or not define at all and
+-- use default).
 data Program        = Program
                         { _progPid  :: Maybe ProcessID
                         , _progBin  :: FilePath
