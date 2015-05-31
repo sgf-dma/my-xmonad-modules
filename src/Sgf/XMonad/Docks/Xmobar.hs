@@ -9,6 +9,7 @@ module Sgf.XMonad.Docks.Xmobar
     , xmobarConf
     , xmobarPP
     , xmobarToggle
+    , xmobarLaunch
     , defaultXmobar
     , defaultXmobarPP
     )
@@ -50,6 +51,7 @@ data Xmobar      = Xmobar
                         , _xmobarConf    :: FilePath
                         , _xmobarPP      :: Maybe L.PP
                         , _xmobarToggle  :: Maybe (ButtonMask, KeySym)
+                        , _xmobarLaunch  :: Maybe (ButtonMask, KeySym)
                         }
   deriving (Typeable)
 -- This Lens exposes underlying Program fields. Using it directly may break
@@ -87,6 +89,9 @@ xmobarPP f z@(Xmobar {_xmobarPP = x})
 xmobarToggle :: LensA Xmobar (Maybe (ButtonMask, KeySym))
 xmobarToggle f z@(Xmobar {_xmobarToggle = x})
                     = fmap (\x' -> z{_xmobarToggle = x'}) (f x)
+xmobarLaunch :: LensA Xmobar (Maybe (ButtonMask, KeySym))
+xmobarLaunch f z@(Xmobar {_xmobarLaunch = x})
+                    = fmap (\x' -> z{_xmobarLaunch = x'}) (f x)
 -- Default for type, but not default expected by users of this type.
 defaultXmobar' :: Xmobar
 defaultXmobar'      = Xmobar
@@ -94,6 +99,7 @@ defaultXmobar'      = Xmobar
                         , _xmobarConf   = ""
                         , _xmobarPP     = Nothing
                         , _xmobarToggle = Nothing
+                        , _xmobarLaunch = Nothing
                         }
 
 -- Default expected by user's of Xmobar type. Usually it should be used
@@ -117,6 +123,7 @@ instance Show Xmobar where
         showString "Xmobar {_xmobarProg = " . showsPrec d (viewA xmobarProg x)
         . showString ", _xmobarConf = "     . showsPrec d (viewA xmobarConf x)
         . showString ", _xmobarToggle = "   . showsPrec d (viewA xmobarToggle x)
+        . showString ", _xmobarLaunch = "   . showsPrec d (viewA xmobarLaunch x)
         . showString "}"
       where
         app_prec    = 10
@@ -126,6 +133,7 @@ instance Read Xmobar where
         xp <- readLexsM ["{", "_xmobarProg", "="] >> readsPrecM d
         xc <- readLexsM [",", "_xmobarConf", "="] >> readsPrecM d
         xt <- readLexsM [",", "_xmobarToggle", "="] >> readsPrecM d
+        xl <- readLexsM [",", "_xmobarLaunch", "="] >> readsPrecM d
         readLexsM ["}"]
         -- The same as above: i need to overwrite records of defaultXmobar
         -- here, so right after reading saved extensible state ppOutput will
@@ -133,6 +141,7 @@ instance Read Xmobar where
         let x = setA xmobarProg xp
                   . setA xmobarConf xc
                   . setA xmobarToggle xt
+                  . setA xmobarLaunch xl
                   $ defaultXmobar
         return x
       where
@@ -169,6 +178,7 @@ instance RestartClass Xmobar where
     -- not check process existence - just logs according to PP, if any.
     killP           = modifyAA xmobarProg killP
                         . modifyA (xmobarPP . maybeL) resetPipe
+    launchKey       = viewA xmobarLaunch
 instance DockClass Xmobar where
     dockToggleKey   = viewA xmobarToggle
     ppL             = xmobarPP
