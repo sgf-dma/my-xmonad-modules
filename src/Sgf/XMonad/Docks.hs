@@ -26,7 +26,6 @@ import Data.List
 import Data.Monoid
 import Control.Monad.State
 import Control.Applicative
-import Control.Concurrent (threadDelay)
 
 import XMonad
 import XMonad.Hooks.ManageDocks hiding (docksEventHook)
@@ -75,11 +74,6 @@ addDock d           = ProgConfig
 -- details on `lowerDock`. And call dock's ManageHook, if any.
 lowerDock :: RestartClass a => a -> MaybeManageHook
 lowerDock d         = do
-    -- FIXME: Lower delay.
-    -- Sometimes `pid` returns Nothing even though process has started and
-    -- Extensible State contains correct pid. Probably, i should wait for a
-    -- bit.
-    liftIO $ threadDelay 500000
     mp <- pid
     w  <- ask
     mx <- liftX $ getProcess d

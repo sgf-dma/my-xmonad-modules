@@ -215,10 +215,6 @@ launchProg x (XConfig {modMask = m}) = maybeToList $ do
 -- same type stored in Extensible State.
 manageProg :: RestartClass a => a -> MaybeManageHook
 manageProg y        = do
-    -- Sometimes `pid` returns Nothing even though process has started and
-    -- Extensible State contains correct pid. Probably, i should wait for a
-    -- bit.
-    liftIO $ threadDelay 500000
     mp <- pid
     mx <- liftX $ getProcess y
     if mp == maybe Nothing (viewA pidL) mx
@@ -228,13 +224,19 @@ manageProg y        = do
 -- Merge ProgConfig-s into existing XConfig properly.
 handleProgs :: LayoutClass l Window => [ProgConfig l] -> XConfig l -> XConfig l
 handleProgs ps cf   = addProgKeys $ cf
-      -- Run only one matched program's ManageHook for any Window.
-      { manageHook = composeOne (map progManageHook ps) <+> manageHook cf
-      -- Restart all programs at xmonad startup.
-      , startupHook = mapM_ progStartupHook ps >> startupHook cf
-      -- Log to all programs.
-      , logHook = mapM_ progLogHook ps >> logHook cf
-      }
+    -- Run only one, matched program's ManageHook for any Window.  Program
+    -- ManageHook-s may use `pid` function, which requests _NET_WM_PID window
+    -- property, and sometimes it returns Nothing even though process has
+    -- started and Extensible State contains correct pid. Probably, i should
+    -- wait for a bit.
+    { manageHook    = do
+                        liftIO $ threadDelay 300000
+                        composeOne (map progManageHook ps) <+> manageHook cf
+    -- Restart all programs at xmonad startup.
+    , startupHook   = mapM_ progStartupHook ps >> startupHook cf
+    -- Log to all programs.
+    , logHook       = mapM_ progLogHook ps >> logHook cf
+    }
   where
     -- Join keys for launching programs.
     --addProgKeys :: XConfig l1 -> XConfig l1
