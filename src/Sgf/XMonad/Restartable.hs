@@ -116,9 +116,8 @@ class ProcessClass a => RestartClass a where
     -- restartP here, program will be terminated and started again at xmonad
     -- restarts, but if i use startP here, program will only be restarted, if
     -- it wasn't running at xmonad restart.
-    -- FIXME: Change to 'startP' because it's the only safe action.
     doLaunchP :: a -> X ()
-    doLaunchP       = restartP
+    doLaunchP       = startP
     -- Whether to start program from startupHook ?
     launchAtStartup  :: a -> Bool
     launchAtStartup = const True
