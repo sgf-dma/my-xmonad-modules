@@ -83,14 +83,9 @@ lowerDock d         = do
     mp <- pid
     w  <- ask
     mx <- liftX $ getProcess d
-    trace ("Dock pid: " ++ show mp ++ ", " ++ show mx)
-    if (mp == maybe Nothing (viewA pidL) mx)
-      then do
-        trace ("Lower: "  ++ show w)
-        Just <$> (liftX (lowerDock' w ) >> manageP d)
-      else do
-        trace ("Not a dock: " ++ show d)
-        return Nothing
+    if mp == maybe Nothing (viewA pidL) mx
+      then Just <$> (liftX (lowerDock' w ) >> manageP d)
+      else return Nothing
   where
     lowerDock' :: Window -> X () 
     lowerDock' w    = withDisplay (io . flip lowerWindow w)
@@ -104,7 +99,7 @@ toggleDock x (XConfig {modMask = m}) = maybeToList $ do
 -- (Struts) of all docks.
 handleDocks :: LayoutClass l Window => (ButtonMask, KeySym)
                -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
-handleDocks t cf    = additionalKeys <*> (toggleAllDocks t) $ cf
+handleDocks t cf    = additionalKeys <*> toggleAllDocks t $ cf
       -- First, de-manage dock applications.
       { manageHook = manageDocks <+> manageHook cf
       -- Then refresh screens after new dock appears.

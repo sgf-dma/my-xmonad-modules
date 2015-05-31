@@ -220,16 +220,10 @@ manageProg y        = do
     -- bit.
     liftIO $ threadDelay 500000
     mp <- pid
-    w  <- ask
     mx <- liftX $ getProcess y
-    trace ("Program pid: " ++ show mp ++ ", " ++ show mx)
     if mp == maybe Nothing (viewA pidL) mx
-      then Just <$> do
-        trace ("Manage: " ++ show w)
-        manageP y
-      else do
-        trace ("No match: " ++ show y)
-        return Nothing
+      then Just <$> manageP y
+      else return Nothing
 
 -- Merge ProgConfig-s into existing XConfig properly.
 handleProgs :: LayoutClass l Window => [ProgConfig l] -> XConfig l -> XConfig l
