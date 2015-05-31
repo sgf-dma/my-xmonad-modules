@@ -2,8 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Sgf.XMonad.Docks
-    ( DockConfig
-    , addDock
+    ( addDock
     , handleDocks
     , DockClass (..)
     , ppCurrentL
@@ -27,11 +26,10 @@ import Data.List
 import Data.Monoid
 import Control.Monad.State
 import Control.Applicative
-import System.Posix.Types (ProcessID)
 
 import XMonad
 import XMonad.Hooks.ManageDocks hiding (docksEventHook)
-import XMonad.Hooks.ManageHelpers (pid)
+import XMonad.Hooks.ManageHelpers
 import XMonad.Hooks.DynamicLog
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Util.EZConfig (additionalKeys)
@@ -42,103 +40,81 @@ import Sgf.Control.Lens
 import Sgf.XMonad.Restartable
 
 
--- Store some records of XConfig modified for particular dock.
--- FIXME: DockConfig should inherit something from ProgConfig . But then
--- DockClass must require RestartClass .
-data DockConfig l   = DockConfig
-                        { dockProg      :: ProgConfig l
-                        , dockLogHook   :: X ()
-                        , dockKeys      :: XConfig l
-                                           -> [((ButtonMask, KeySym), X ())]
-                        }
-
--- Wrapper around any DockClass type implementing correct dock program
--- initialization at startup: reinitPP should be done before any runP calls,
--- because i may check or fill some PP values in dock's RestartClass instance.
--- And because PP can't be saved in Extensible State, i should reinit it at
--- every xmonad restart. Note, that i can't use Existential type here, because
--- i can't define ProcessClass then.
-newtype DockProg a  = DockProg a
-  deriving (Eq, Read, Show, Typeable)
-instance ProcessClass a => ProcessClass (DockProg a) where
-    pidL f (DockProg x)     = DockProg <$> pidL f x
-instance (RestartClass a, DockClass a) => RestartClass (DockProg a) where
-    runP (DockProg x)       = DockProg <$> runP x
-    killP (DockProg x)      = DockProg <$> killP x
-    manageP (DockProg x)    = manageP x
-    doLaunchP (DockProg x)  = liftA2 (<*) reinitPP doLaunchP x
-    launchAtStartup (DockProg x) = launchAtStartup x
-    launchKey (DockProg x)  = launchKey x
-instance DockClass a => DockClass (DockProg a) where
-    dockToggleKey (DockProg x)  = dockToggleKey x
-    ppL f (DockProg x)          = DockProg <$> ppL f x
-
--- Create DockConfig for DockClass instance.
-addDock :: (RestartClass a, DockClass a, LayoutClass l Window) =>
-               a -> DockConfig l
-addDock d           = DockConfig
-      -- Launch dock process properly.
-      { dockProg    = addProg (DockProg d)
-      -- Log to dock according to its PP .
-      , dockLogHook = dockLog d
-      -- Key for toggling Struts of this Dock.
-      , dockKeys    = toggleDock d
-      }
-
--- Merge DockConfig-s into existing XConfig properly. Also takes a key for
--- toggling visibility (Struts) of all docks.
-handleDocks :: LayoutClass l Window => (ButtonMask, KeySym)
-               -> [DockConfig (ModifiedLayout AvoidStruts l)]
-               -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
-handleDocks t ds cf = addDockKeys . handleProgs (map dockProg ds) $ cf
-      -- First, de-manage dock applications.
-      { manageHook = manageDocks <+> manageHook cf
-      -- Then refresh screens after new dock appears.
-      , handleEventHook = docksEventHook <+> handleEventHook cf
-      -- Reduce Rectangle available for other windows according to Struts.
-      , layoutHook = avoidStruts (layoutHook cf)
-      -- Log to all docks according to their PP .
-      , logHook = mapM_ dockLogHook ds >> logHook cf
-      }
-  where
-    -- Join keys for toggling Struts of all docks and of each dock, if
-    -- defined.
-    --addDockKeys :: XConfig l1 -> XConfig l1
-    addDockKeys     = additionalKeys <*> (concat <$> sequence
-                        (toggleAllDocks t : map dockKeys ds))
-
-
 class ProcessClass a => DockClass a where
     dockToggleKey   :: a -> Maybe (ButtonMask, KeySym)
     dockToggleKey   = const Nothing
     ppL             :: LensA a (Maybe PP)
     ppL             = nothingL
 
-toggleAllDocks :: (ButtonMask, KeySym) -> XConfig l
-               -> [((ButtonMask, KeySym), X ())]
-toggleAllDocks (mk, k) XConfig {modMask = m} =
-                        [((m .|. mk, k), sendMessage ToggleStruts)]
+addDock :: (RestartClass a, DockClass a, LayoutClass l Window) =>
+           a -> ProgConfig l
+addDock d           = ProgConfig
+      -- Send dock window to bottom of X window stack, so it does not cover
+      -- application windows created earlier, when Struts are off (i assume,
+      -- that docks are restarted with xomnad, but applications are not, thus
+      -- after xmonad restart dock window will be above in X stack, then
+      -- windows of already running applications). And call dock's ManageHook,
+      -- if any.
+      { progManageHook  = lowerDock d
+      -- Launch dock process properly: reinitPP should be done before any runP
+      -- calls, because i may check or fill some PP values in dock's
+      -- RestartClass instance.  And because PP can't be saved in Extensible
+      -- State, i should reinit it at every xmonad restart.
+      , progStartupHook = liftA2 (<*) reinitPP doLaunchP d
+      -- Keys for launching and toggling Struts of this Dock.
+      , progKeys        = liftA2 (++) <$> launchProg <*> toggleDock $ d
+      -- Log to dock according to its PP .
+      , progLogHook     = dockLog d
+      }
+
+-- Send dock window to bottom of X window stack, so it does not cover
+-- application windows created earlier, when Struts are off (before xmonad
+-- restart, if dock has been restarted). See "3.8 Changing Window Stacking
+-- Order" from http://tronche.com/gui/x/xlib/window/stacking-order.html for
+-- details on `lowerDock`. And call dock's ManageHook, if any.
+lowerDock :: RestartClass a => a -> MaybeManageHook
+lowerDock d         = do
+    mp <- pid
+    w  <- ask
+    mx <- liftX $ getProcess d
+    if mp == maybe Nothing (viewA pidL) mx
+      then Just <$> (liftX (lowerDock' w ) >> manageP d)
+      else return Nothing
+  where
+    lowerDock' :: Window -> X () 
+    lowerDock' w    = withDisplay (io . flip lowerWindow w)
 
 toggleDock :: DockClass a => a -> XConfig l -> [((ButtonMask, KeySym), X ())]
 toggleDock x (XConfig {modMask = m}) = maybeToList $ do
     (mk, k) <- dockToggleKey x
     return ((m .|. mk, k), toggleProcessStruts x)
 
--- Toggle struts for any ProcessClass instance.
+-- Handle all dock applications properly and add a key for toggling visibility
+-- (Struts) of all docks.
+handleDocks :: LayoutClass l Window => (ButtonMask, KeySym)
+               -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
+handleDocks t cf    = additionalKeys <*> toggleAllDocks t $ cf
+      -- First, de-manage dock applications.
+      { manageHook = manageDocks <+> manageHook cf
+      -- Then refresh screens after new dock appears.
+      , handleEventHook = docksEventHook <+> handleEventHook cf
+      -- Reduce Rectangle available for other windows according to Struts.
+      , layoutHook = avoidStruts (layoutHook cf)
+      }
+
+toggleAllDocks :: (ButtonMask, KeySym) -> XConfig l
+               -> [((ButtonMask, KeySym), X ())]
+toggleAllDocks (mk, k) XConfig {modMask = m} =
+                        [((m .|. mk, k), sendMessage ToggleStruts)]
+
+-- Toggle struts for ProcessClass instance.
 toggleProcessStruts :: ProcessClass a => a -> X ()
 toggleProcessStruts = withProcess $ \x -> do
-    maybe (return ()) togglePidStruts (viewA pidL x)
+    ws <- findWins x
+    ss <- mapM getStrut ws
+    let ds = nub . map (\(s, _, _, _) -> s) . concat $ ss
+    mapM_ (sendMessage . ToggleStrut) ds
     return x
-  where
-    -- Toggle all struts, which specified PID have.
-    togglePidStruts :: ProcessID -> X ()
-    togglePidStruts cPid = withDisplay $ \dpy -> do
-        rootw <- asks theRoot
-        (_, _, wins) <- io $ queryTree dpy rootw
-        ws <- filterM (\w -> maybe False (== cPid) <$> runQuery pid w) wins
-        ss <- mapM getStrut ws
-        let ds = nub . map (\(s, _, _, _) -> s) . concat $ ss
-        mapM_ (sendMessage . ToggleStrut) ds
 
 -- Copy from XMonad.Hooks.ManageDocks .
 type Strut = (Direction2D, CLong, CLong, CLong)
