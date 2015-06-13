@@ -56,11 +56,12 @@ addDock d           = ProgConfig
       -- windows of already running applications). And call dock's ManageHook,
       -- if any.
       { progManageHook  = lowerDock d
-      -- Launch dock process properly: reinitPP should be done before any runP
-      -- calls, because i may check or fill some PP values in dock's
-      -- RestartClass instance.  And because PP can't be saved in Extensible
-      -- State, i should reinit it at every xmonad restart.
-      , progStartupHook = liftA2 (<*) reinitPP doLaunchP d
+      -- Launch dock process: PP does not saved in Extensible State and should
+      -- be reinitialized before start by `doLaunchP` . To make this happen,
+      -- functions used to start process should use `withProcessP` (not just
+      -- `withProcess`), which `mappend`-s value used for searching in
+      -- Extensible State to found value.
+      , progStartupHook =  when (launchAtStartup d) (doLaunchP d)
       -- Keys for launching and toggling Struts of this Dock.
       , progKeys        = liftA2 (++) <$> launchProg <*> toggleDock $ d
       -- Log to dock according to its PP .
@@ -151,12 +152,6 @@ dockLog :: DockClass a => a ->  X ()
 dockLog             = withProcess $ \x -> do
     maybe (return ()) dynamicLogWithPP (viewA ppL x)
     return x
-
--- Because i can't save PP values in persistent Extensible State (there is
--- neither Show nor Read instance for PP), i need to reinitialize them each
--- time at the start (in startupHook).
-reinitPP :: DockClass a => a -> X ()
-reinitPP y          = withProcess (return . setA ppL (viewA ppL y)) y
 
 
 -- Lenses to PP.
