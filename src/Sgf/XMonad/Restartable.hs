@@ -49,6 +49,7 @@ import qualified XMonad.Util.ExtensibleState as XS
 import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Util.Run
+import Sgf.XMonad.Util.EZConfig
 
 
 -- To avoid orphan (ExtensionClass [a]) instance, i need newtype.
@@ -249,9 +250,13 @@ handleProgs ps cf   = addProgKeys $ cf
     , logHook       = mapM_ progLogHook ps >> logHook cf
     }
   where
-    -- Join keys for launching programs.
+    -- Merge program keys appending actions (not overwriting) for duplicate
+    -- keys. Thus, if several programs use the same key, it'll launch them
+    -- all. Then add resulting key list to xmonad keys (overwriting matches
+    -- now).
     --addProgKeys :: XConfig l1 -> XConfig l1
-    addProgKeys     = additionalKeys <*> (concat <$> mapM progKeys ps)
+    addProgKeys     = additionalKeys <*>
+                        (appendKeys <$> concat <$> mapM progKeys ps)
 
 -- Default program providing set of fields needed for regular program and
 -- default runP implementation.  Note: when using newtypes around Program
