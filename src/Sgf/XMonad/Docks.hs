@@ -66,6 +66,8 @@ addDock d           = ProgConfig
       , progKeys        = liftA2 (++) <$> launchProg <*> toggleDock $ d
       -- Log to dock according to its PP .
       , progLogHook     = dockLog d
+      -- And show key used for launching dock.
+      , showProgKeys    = showKey d
       }
 
 -- Send dock window to bottom of X window stack, so it does not cover
