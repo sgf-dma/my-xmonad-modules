@@ -110,12 +110,13 @@ toggleAllDocks (mk, k) XConfig {modMask = m} =
 
 -- Toggle struts for ProcessClass instance.
 toggleProcessStruts :: ProcessClass a => a -> X ()
-toggleProcessStruts = withProcess $ \x -> do
-    ws <- findWins x
-    ss <- mapM getStrut ws
-    let ds = nub . map (\(s, _, _, _) -> s) . concat $ ss
-    mapM_ (sendMessage . ToggleStrut) ds
-    return x
+toggleProcessStruts y = do
+    mx <- getProcess y
+    flip (maybe (return ())) mx $ \x -> do
+      ws <- findWins x
+      ss <- mapM getStrut ws
+      let ds = nub . map (\(s, _, _, _) -> s) . concat $ ss
+      mapM_ (sendMessage . ToggleStrut) ds
 
 -- Copy from XMonad.Hooks.ManageDocks .
 type Strut = (Direction2D, CLong, CLong, CLong)
@@ -149,9 +150,12 @@ docksEventHook e = do
           et = ev_event_type e
 
 dockLog :: DockClass a => a ->  X ()
-dockLog             = withProcess $ \x -> do
-    maybe (return ()) dynamicLogWithPP (viewA ppL x)
-    return x
+dockLog y           = do
+    mx <- getProcess y
+    fromMaybe (return ()) $ do
+      x <- mx
+      pp <- viewA ppL x
+      return (dynamicLogWithPP pp)
 
 
 -- Lenses to PP.
