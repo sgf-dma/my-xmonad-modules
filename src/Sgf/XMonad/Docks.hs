@@ -94,9 +94,9 @@ toggleDock x (XConfig {modMask = m}) = maybeToList $ do
 
 -- Handle all dock applications properly and add a key for toggling visibility
 -- (Struts) of all docks.
-handleDocks :: LayoutClass l Window => (ButtonMask, KeySym)
+handleDocks :: LayoutClass l Window => Maybe (ButtonMask, KeySym)
                -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
-handleDocks t cf    = additionalKeys <*> toggleAllDocks t $ cf
+handleDocks mt cf   = additionalKeys <*> toggleAllDocks mt $ cf
       -- First, de-manage dock applications.
       { manageHook = manageDocks <+> manageHook cf
       -- Then refresh screens after new dock appears.
@@ -104,11 +104,12 @@ handleDocks t cf    = additionalKeys <*> toggleAllDocks t $ cf
       -- Reduce Rectangle available for other windows according to Struts.
       , layoutHook = avoidStruts (layoutHook cf)
       }
-
-toggleAllDocks :: (ButtonMask, KeySym) -> XConfig l
-               -> [((ButtonMask, KeySym), X ())]
-toggleAllDocks (mk, k) XConfig {modMask = m} =
-                        [((m .|. mk, k), sendMessage ToggleStruts)]
+  where
+    toggleAllDocks :: Maybe (ButtonMask, KeySym) -> XConfig l
+                      -> [((ButtonMask, KeySym), X ())]
+    toggleAllDocks (Just (mk, k)) XConfig{modMask = m} =
+                            [((m .|. mk, k), sendMessage ToggleStruts)]
+    toggleAllDocks Nothing _ = []
 
 -- Toggle struts for ProcessClass instance.
 toggleProcessStruts :: ProcessClass a => a -> X ()

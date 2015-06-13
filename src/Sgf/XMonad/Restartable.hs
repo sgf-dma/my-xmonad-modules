@@ -244,9 +244,9 @@ manageProg y        = do
 
 -- Merge ProgConfig-s into existing XConfig properly and add key for showing
 -- program launch keys.
-handleProgs :: LayoutClass l Window => (ButtonMask, KeySym)
+handleProgs :: LayoutClass l Window => Maybe (ButtonMask, KeySym)
                -> [ProgConfig l] -> XConfig l -> XConfig l
-handleProgs t ps cf = addProgKeys . (additionalKeys <*> addShowKey t) $ cf
+handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
     -- Run only one, matched program's ManageHook for any Window.  Program
     -- ManageHook-s may use `pid` function, which requests _NET_WM_PID window
     -- property, and sometimes it returns Nothing even though process has
@@ -269,13 +269,14 @@ handleProgs t ps cf = addProgKeys . (additionalKeys <*> addShowKey t) $ cf
     addProgKeys     = additionalKeys <*>
                         (appendKeys <$> concat <$> mapM progKeys ps)
     -- Key for showing program launch keys.
-    addShowKey :: (ButtonMask, KeySym) -> XConfig l
+    addShowKey :: Maybe (ButtonMask, KeySym) -> XConfig l
                   -> [((ButtonMask, KeySym), X ())]
-    addShowKey (mk, k) (XConfig {modMask = m})  =
+    addShowKey (Just (mk, k)) XConfig{modMask = m} =
                 [ ( (m .|. mk, k)
                   , trace . unlines . filter (/= "") . map showProgKeys $ ps
                   )
                 ]
+    addShowKey Nothing _ = []
 
 -- Default program providing set of fields needed for regular program and
 -- default runP implementation.  Note: when using newtypes around Program
