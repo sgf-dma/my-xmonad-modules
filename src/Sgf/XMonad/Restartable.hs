@@ -9,6 +9,7 @@ module Sgf.XMonad.Restartable
     , getProcesses
     , findWins
     , RestartClass (..)
+    , withProcessP
     , startP
     , startP'
     , stopP
@@ -31,6 +32,7 @@ module Sgf.XMonad.Restartable
 
 import Data.List
 import Data.Maybe (maybeToList)
+import Data.Monoid
 import Control.Applicative
 import Control.Monad
 import Control.Exception (try, IOException)
@@ -98,7 +100,7 @@ findWins x          = withDisplay $ \dpy -> do
     flip (maybe (return [])) (viewA pidL x) $ \px ->
       filterM (\w -> maybe False (== px) <$> runQuery pid w) wins
 
-class ProcessClass a => RestartClass a where
+class (Monoid a, ProcessClass a) => RestartClass a where
     -- Run a program.
     runP  :: a -> X a
     -- Terminate a program.  restartP' relies on Pid 'Nothing' after killP,
@@ -124,6 +126,16 @@ class ProcessClass a => RestartClass a where
     -- Key for restarting program.
     launchKey  :: a -> Maybe (ButtonMask, KeySym)
     launchKey       = const Nothing
+
+-- Version of withProcess, which `mappend`-s process we're searching by and
+-- process we've found. Thus, some fields of found process may be updated.
+-- It's important, that `mappend` runs before calling function f and with
+-- found process first. I need this function, for updating changed (by user)
+-- process records (e.g. progArgs) after xmonad restart (recompile and
+-- reload), because `withProcess` will just use old process value stored in
+-- Extensible State.
+withProcessP :: RestartClass a => (a -> X a) -> a -> X ()
+withProcessP f y    = withProcess (f . flip mappend y) y
 
 -- Based on doesPidProgRun by Thomas Bach
 -- (https://github.com/fuzzy-id/my-xmonad) .
@@ -164,16 +176,16 @@ toggleP' x          = do
 -- Here are versions of start/stop working on extensible state.  Usually,
 -- these should be used.
 startP :: RestartClass a => a -> X ()
-startP              = withProcess startP'
+startP              = withProcessP startP'
 
 stopP :: RestartClass a => a -> X ()
-stopP               = withProcess stopP'
+stopP               = withProcessP stopP'
 
 restartP :: RestartClass a => a -> X ()
-restartP            = withProcess restartP'
+restartP            = withProcessP restartP'
 
 toggleP :: RestartClass a => a -> X ()
-toggleP             = withProcess toggleP'
+toggleP             = withProcessP toggleP'
 
 -- Print all tracked in Extensible State programs with given type.
 traceP :: RestartClass a => a -> X ()
@@ -274,6 +286,11 @@ defaultProgram      = Program
 -- programs should have different types.
 instance Eq Program where
     _ == _          = True
+instance Monoid Program where
+    x `mappend` y   = setA progBin (viewA progBin y)
+                        . setA progArgs (viewA progArgs y)
+                        $ x
+    mempty          = defaultProgram
 instance ProcessClass Program where
     pidL            = progPid
 instance RestartClass Program where
