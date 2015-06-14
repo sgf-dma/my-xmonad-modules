@@ -273,7 +273,10 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
                   -> [((ButtonMask, KeySym), X ())]
     addShowKey (Just (mk, k)) XConfig{modMask = m} =
                 [ ( (m .|. mk, k)
-                  , trace . unlines . filter (/= "") . map showProgKeys $ ps
+                  , spawn' "xmessage"
+                      [ "-default", "okay"
+                      , unlines . filter (/= "") . map showProgKeys $ ps
+                      ]
                   )
                 ]
     addShowKey Nothing _ = []
