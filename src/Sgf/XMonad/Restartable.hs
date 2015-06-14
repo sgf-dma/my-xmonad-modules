@@ -32,6 +32,7 @@ module Sgf.XMonad.Restartable
   where
 
 import Data.List
+import Data.Maybe
 import Data.Monoid
 import Control.Applicative
 import Control.Monad
@@ -238,7 +239,7 @@ manageProg :: RestartClass a => a -> MaybeManageHook
 manageProg y        = do
     mp <- pid
     mx <- liftX $ getProcess y
-    if mp == maybe Nothing (viewA pidL) mx
+    if isJust mx && mp == viewA pidL (fromJust mx)
       then Just <$> manageP y
       else return Nothing
 
