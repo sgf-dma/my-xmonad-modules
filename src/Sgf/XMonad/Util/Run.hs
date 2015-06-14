@@ -2,6 +2,7 @@
 module Sgf.XMonad.Util.Run
     ( spawnPipe'
     , spawnPID'
+    , spawn'
     )
   where
 
@@ -29,4 +30,7 @@ spawnPipe' x xs     = io $ do
 
 spawnPID' :: MonadIO m => FilePath -> [String] -> m ProcessID
 spawnPID' x xs      = xfork $ executeFile x True xs Nothing
+
+spawn' :: MonadIO m => FilePath -> [String] -> m ()
+spawn' x xs         = spawnPID' x xs >> return ()
 

@@ -4,7 +4,13 @@ module Sgf.XMonad.Docks.Xmobar
     ( Xmobar
     -- I don't export this Lens, because it will allow to construct Xmobar
     -- value with broken (xmobarConf -> progArgs) relationship and then
-    -- xmobarConf Lens will break Lens laws (see below).
+    -- xmobarConf Lens will break Lens laws (see below). Moreover, Monoid
+    -- instance does not merge Program records at all. And, finally, merging
+    -- it in Monoid instance is bad: the only way to do it correctly is to
+    -- rewrite xmobarProg *strictly* after xmobarConf have rewritten.
+    -- Otheriwse, i'll have inconsistent value, where current xmobarConf is
+    -- not the last argument in progArgs, which lead to config added twice to
+    -- progArgs.
     -- , xmobarProg
     , xmobarConf
     , xmobarPP
@@ -16,6 +22,7 @@ module Sgf.XMonad.Docks.Xmobar
   where
 
 import Prelude hiding (catch)
+import Data.Monoid
 import Control.Monad.State
 import Control.Exception
 import System.IO (hPutStrLn)
@@ -51,7 +58,7 @@ data Xmobar      = Xmobar
                         , _xmobarConf    :: FilePath
                         , _xmobarPP      :: Maybe L.PP
                         , _xmobarToggle  :: Maybe (ButtonMask, KeySym)
-                        , _xmobarLaunch  :: Maybe (ButtonMask, KeySym)
+                        , _xmobarLaunch  :: [(ButtonMask, KeySym)]
                         }
   deriving (Typeable)
 -- This Lens exposes underlying Program fields. Using it directly may break
@@ -83,13 +90,35 @@ xmobarConf f z@(Xmobar {_xmobarConf = xcf, _xmobarProg = xp})
     updateConf xcf' xargs = case splitAt 1 (reverse xargs) of
                               ([cf], _) | cf == xcf -> init xargs ++ [xcf']
                               _                     ->      xargs ++ [xcf']
+-- Lens to PP, which overwrites ppOutput: generally, ppOutput is set in runP
+-- and should write to pipe to xmobar, so i should not allow modifying it for
+-- anyone. So (old _xmobarPP value is on the left of plus sign, new - on the
+-- right, and after equal sign is value to which i rewrite):
+-- Nothing + Nothing = Nothing
+-- Nothing + Just    = Just with pp set by `resetPipe`
+-- Just    + Nothing = Nothing; does this correct? But if i make this Just,
+--                     then there will be no way of setting _xmobarPP to
+--                     Nothing at xmonad restart (recompile + reload)..
+-- Just    + Just    = Just with pp preserved from old value
 xmobarPP :: LensA Xmobar (Maybe L.PP)
 xmobarPP f z@(Xmobar {_xmobarPP = x})
+                    = fmap (\y -> z
+                            { _xmobarPP = modifyA maybeL
+                                                  (updatePPOutput x) y
+                            }
+                        ) (f x)
+  where
+    updatePPOutput :: Maybe L.PP -> L.PP -> L.PP
+    updatePPOutput Nothing  = resetPipe
+    updatePPOutput (Just t) = setA ppOutputL (viewA ppOutputL t)
+-- Lens to PP, which does not modify PP. Do not export, for internal use only!
+xmobarPP' :: LensA Xmobar (Maybe L.PP)
+xmobarPP' f z@(Xmobar {_xmobarPP = x})
                     = fmap (\x' -> z{_xmobarPP = x'}) (f x)
 xmobarToggle :: LensA Xmobar (Maybe (ButtonMask, KeySym))
 xmobarToggle f z@(Xmobar {_xmobarToggle = x})
                     = fmap (\x' -> z{_xmobarToggle = x'}) (f x)
-xmobarLaunch :: LensA Xmobar (Maybe (ButtonMask, KeySym))
+xmobarLaunch :: LensA Xmobar [(ButtonMask, KeySym)]
 xmobarLaunch f z@(Xmobar {_xmobarLaunch = x})
                     = fmap (\x' -> z{_xmobarLaunch = x'}) (f x)
 -- Default for type, but not default expected by users of this type.
@@ -99,7 +128,7 @@ defaultXmobar'      = Xmobar
                         , _xmobarConf   = ""
                         , _xmobarPP     = Nothing
                         , _xmobarToggle = Nothing
-                        , _xmobarLaunch = Nothing
+                        , _xmobarLaunch = []
                         }
 
 -- Default expected by user's of Xmobar type. Usually it should be used
@@ -151,18 +180,29 @@ instance Eq Xmobar where
     x == y
       | viewA xmobarConf x == viewA xmobarConf y = True
       | otherwise   = False
+-- Program Xmobar records are *not* merged. After all, xmobarProg does not
+-- exported and noone should be able to alter Program record in any way.  I.e.
+-- all Program records should be derivable from Xmobar own records. Only in
+-- that case i can preserve record dependencies (like in xmobarConf).
+instance Monoid Xmobar where
+    x `mappend` y   = setA xmobarConf (viewA xmobarConf y)
+                        . setA xmobarPP (viewA xmobarPP y)
+                        . setA xmobarToggle (viewA xmobarToggle y)
+                        . setA xmobarLaunch (viewA xmobarLaunch y)
+                        $ x
+    mempty          = defaultXmobar
 instance ProcessClass Xmobar where
     pidL            = xmobarProg . pidL
 instance RestartClass Xmobar where
     runP x          = userCodeDef x $ do
         xcf <- absXmobarConf
         liftIO $ doesFileExist' xcf `catch` (throw . XmobarConfException)
-        case viewA xmobarPP x of
+        case viewA xmobarPP' x of
           Just _    -> do
             (h, p) <- spawnPipe' "xmobar" (viewA (xmobarProg . progArgs) x)
             return
               . setA pidL (Just p)
-              . setA (xmobarPP . maybeL . ppOutputL) (hPutStrLn h)
+              . setA (xmobarPP' . maybeL . ppOutputL) (hPutStrLn h)
               $ x
           Nothing   -> modifyAA xmobarProg runP x
       where
@@ -177,7 +217,7 @@ instance RestartClass Xmobar where
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.
     killP           = modifyAA xmobarProg killP
-                        . modifyA (xmobarPP . maybeL) resetPipe
+                        . modifyA (xmobarPP' . maybeL) resetPipe
     doLaunchP       = restartP
     launchKey       = viewA xmobarLaunch
 instance DockClass Xmobar where
