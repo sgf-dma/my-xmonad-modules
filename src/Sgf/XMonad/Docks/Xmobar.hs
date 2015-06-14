@@ -58,7 +58,7 @@ data Xmobar      = Xmobar
                         , _xmobarConf    :: FilePath
                         , _xmobarPP      :: Maybe L.PP
                         , _xmobarToggle  :: Maybe (ButtonMask, KeySym)
-                        , _xmobarLaunch  :: Maybe (ButtonMask, KeySym)
+                        , _xmobarLaunch  :: [(ButtonMask, KeySym)]
                         }
   deriving (Typeable)
 -- This Lens exposes underlying Program fields. Using it directly may break
@@ -118,7 +118,7 @@ xmobarPP' f z@(Xmobar {_xmobarPP = x})
 xmobarToggle :: LensA Xmobar (Maybe (ButtonMask, KeySym))
 xmobarToggle f z@(Xmobar {_xmobarToggle = x})
                     = fmap (\x' -> z{_xmobarToggle = x'}) (f x)
-xmobarLaunch :: LensA Xmobar (Maybe (ButtonMask, KeySym))
+xmobarLaunch :: LensA Xmobar [(ButtonMask, KeySym)]
 xmobarLaunch f z@(Xmobar {_xmobarLaunch = x})
                     = fmap (\x' -> z{_xmobarLaunch = x'}) (f x)
 -- Default for type, but not default expected by users of this type.
@@ -128,7 +128,7 @@ defaultXmobar'      = Xmobar
                         , _xmobarConf   = ""
                         , _xmobarPP     = Nothing
                         , _xmobarToggle = Nothing
-                        , _xmobarLaunch = Nothing
+                        , _xmobarLaunch = []
                         }
 
 -- Default expected by user's of Xmobar type. Usually it should be used

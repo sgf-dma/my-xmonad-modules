@@ -19,7 +19,7 @@ module Sgf.XMonad.Restartable
     , toggleP
     , toggleP'
     , traceP
-    , showKey
+    , showKeys
     , ProgConfig (..)
     , addProg
     , launchProg
@@ -32,7 +32,6 @@ module Sgf.XMonad.Restartable
   where
 
 import Data.List
-import Data.Maybe
 import Data.Monoid
 import Control.Applicative
 import Control.Monad
@@ -126,8 +125,8 @@ class (Monoid a, ProcessClass a) => RestartClass a where
     launchAtStartup  :: a -> Bool
     launchAtStartup = const True
     -- Key for restarting program.
-    launchKey :: a -> Maybe (ButtonMask, KeySym)
-    launchKey       = const Nothing
+    launchKey :: a -> [(ButtonMask, KeySym)]
+    launchKey       = const []
 
 -- Version of withProcess, which `mappend`-s process we're searching by and
 -- process we've found. Thus, some fields of found process may be updated.
@@ -194,10 +193,11 @@ traceP :: RestartClass a => a -> X ()
 traceP y            = getProcesses y >>= mapM_ (trace . show)
 
 -- Show program's launch key.
-showKey :: RestartClass a => a -> String
-showKey x       = maybe "" (\k -> "Key " ++ show k ++ " launches " ++ show x)
-                    (launchKey x)
-
+showKeys :: RestartClass a => a -> String
+showKeys x       = case launchKey x of
+                    [] -> ""
+                    ks -> "Keys " ++ unwords (map show ks)
+                            ++ " launch " ++ show x
 
 -- Store some records of XConfig modified for particular program.
 data ProgConfig l   = ProgConfig
@@ -219,15 +219,15 @@ addProg x           = ProgConfig
                         -- Execute doLaunchP at startup.
                         , progStartupHook = when (launchAtStartup x)
                                                  (doLaunchP x)
-                        -- Add key for executing doLaunchP .
+                        -- Add keys for executing doLaunchP .
                         , progKeys        = launchProg x
-                        -- And show that key.
-                        , showProgKeys    = showKey x
+                        -- And show these keys.
+                        , showProgKeys    = showKeys x
                         }
 
 -- Add key executing doLaunchP action of program.
 launchProg :: RestartClass a => a -> XConfig l -> [((ButtonMask, KeySym), X ())]
-launchProg x (XConfig {modMask = m}) = maybeToList $ do
+launchProg x (XConfig {modMask = m}) = do
     (mk, k) <- launchKey x
     return ((m .|. mk, k), doLaunchP x)
 

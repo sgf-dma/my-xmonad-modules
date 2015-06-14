@@ -67,7 +67,7 @@ addDock d           = ProgConfig
       -- Log to dock according to its PP .
       , progLogHook     = dockLog d
       -- And show key used for launching dock.
-      , showProgKeys    = showKey d
+      , showProgKeys    = showKeys d
       }
 
 -- Send dock window to bottom of X window stack, so it does not cover
