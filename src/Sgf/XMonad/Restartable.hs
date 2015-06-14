@@ -19,6 +19,7 @@ module Sgf.XMonad.Restartable
     , toggleP
     , toggleP'
     , traceP
+    , showKey
     , ProgConfig (..)
     , addProg
     , launchProg
@@ -31,7 +32,7 @@ module Sgf.XMonad.Restartable
   where
 
 import Data.List
-import Data.Maybe (maybeToList)
+import Data.Maybe
 import Data.Monoid
 import Control.Applicative
 import Control.Monad
@@ -49,6 +50,7 @@ import qualified XMonad.Util.ExtensibleState as XS
 import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Util.Run
+import Sgf.XMonad.Util.EZConfig
 
 
 -- To avoid orphan (ExtensionClass [a]) instance, i need newtype.
@@ -124,7 +126,7 @@ class (Monoid a, ProcessClass a) => RestartClass a where
     launchAtStartup  :: a -> Bool
     launchAtStartup = const True
     -- Key for restarting program.
-    launchKey  :: a -> Maybe (ButtonMask, KeySym)
+    launchKey :: a -> Maybe (ButtonMask, KeySym)
     launchKey       = const Nothing
 
 -- Version of withProcess, which `mappend`-s process we're searching by and
@@ -191,6 +193,11 @@ toggleP             = withProcessP toggleP'
 traceP :: RestartClass a => a -> X ()
 traceP y            = getProcesses y >>= mapM_ (trace . show)
 
+-- Show program's launch key.
+showKey :: RestartClass a => a -> String
+showKey x       = maybe "" (\k -> "Key " ++ show k ++ " launches " ++ show x)
+                    (launchKey x)
+
 
 -- Store some records of XConfig modified for particular program.
 data ProgConfig l   = ProgConfig
@@ -199,6 +206,7 @@ data ProgConfig l   = ProgConfig
                         , progStartupHook :: X ()
                         , progKeys        :: XConfig l
                                              -> [((ButtonMask, KeySym), X ())]
+                        , showProgKeys    :: String
                         }
 
 -- Create ProgConfig for RestartClass instance.
@@ -211,8 +219,10 @@ addProg x           = ProgConfig
                         -- Execute doLaunchP at startup.
                         , progStartupHook = when (launchAtStartup x)
                                                  (doLaunchP x)
-                        -- And add key for executing doLaunchP .
+                        -- Add key for executing doLaunchP .
                         , progKeys        = launchProg x
+                        -- And show that key.
+                        , showProgKeys    = showKey x
                         }
 
 -- Add key executing doLaunchP action of program.
@@ -232,9 +242,11 @@ manageProg y        = do
       then Just <$> manageP y
       else return Nothing
 
--- Merge ProgConfig-s into existing XConfig properly.
-handleProgs :: LayoutClass l Window => [ProgConfig l] -> XConfig l -> XConfig l
-handleProgs ps cf   = addProgKeys $ cf
+-- Merge ProgConfig-s into existing XConfig properly and add key for showing
+-- program launch keys.
+handleProgs :: LayoutClass l Window => Maybe (ButtonMask, KeySym)
+               -> [ProgConfig l] -> XConfig l -> XConfig l
+handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
     -- Run only one, matched program's ManageHook for any Window.  Program
     -- ManageHook-s may use `pid` function, which requests _NET_WM_PID window
     -- property, and sometimes it returns Nothing even though process has
@@ -249,9 +261,25 @@ handleProgs ps cf   = addProgKeys $ cf
     , logHook       = mapM_ progLogHook ps >> logHook cf
     }
   where
-    -- Join keys for launching programs.
+    -- Merge program keys appending actions (not overwriting) for duplicate
+    -- keys. Thus, if several programs use the same key, it'll launch them
+    -- all. Then add resulting key list to xmonad keys (overwriting matches
+    -- now).
     --addProgKeys :: XConfig l1 -> XConfig l1
-    addProgKeys     = additionalKeys <*> (concat <$> mapM progKeys ps)
+    addProgKeys     = additionalKeys <*>
+                        (appendKeys <$> concat <$> mapM progKeys ps)
+    -- Key for showing program launch keys.
+    addShowKey :: Maybe (ButtonMask, KeySym) -> XConfig l
+                  -> [((ButtonMask, KeySym), X ())]
+    addShowKey (Just (mk, k)) XConfig{modMask = m} =
+                [ ( (m .|. mk, k)
+                  , spawn' "xmessage"
+                      [ "-default", "okay"
+                      , unlines . filter (/= "") . map showProgKeys $ ps
+                      ]
+                  )
+                ]
+    addShowKey Nothing _ = []
 
 -- Default program providing set of fields needed for regular program and
 -- default runP implementation.  Note: when using newtypes around Program
