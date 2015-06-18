@@ -27,6 +27,7 @@ module Sgf.XMonad.Restartable
     , Program
     , progBin
     , progArgs
+    , progWait
     , defaultProgram
     )
   where
@@ -293,6 +294,7 @@ data Program        = Program
                         { _progPid  :: Maybe ProcessID
                         , _progBin  :: FilePath
                         , _progArgs :: [String]
+                        , _progWait :: Int
                         }
   deriving (Show, Read, Typeable)
 progPid :: LensA Program (Maybe ProcessID)
@@ -304,11 +306,22 @@ progBin f z@(Program {_progBin = x})
 progArgs :: LensA Program [String]
 progArgs f z@(Program {_progArgs = x})
                     = fmap (\x' -> z{_progArgs = x'}) (f x)
+-- Wait specified number of microseconds after spawning a program. Only
+-- positive integers (or zero) allowed in progWait .
+progWait :: LensA Program Int
+progWait f z@(Program {_progWait = x})
+                    = fmap (\x' -> z{_progWait = unsignedInt x'}) (f x)
+  where
+    unsignedInt :: Int -> Int
+    unsignedInt i
+      | i < 0       = 0
+      | otherwise   = i
 defaultProgram :: Program
 defaultProgram      = Program
-                        { _progPid = Nothing
-                        , _progBin = ""
+                        { _progPid  = Nothing
+                        , _progBin  = ""
                         , _progArgs = []
+                        , _progWait = 0
                         }
 
 -- I assume only one instance of each program by default. I.e. different
@@ -316,14 +329,14 @@ defaultProgram      = Program
 instance Eq Program where
     _ == _          = True
 instance Monoid Program where
-    x `mappend` y   = setA progBin (viewA progBin y)
-                        . setA progArgs (viewA progArgs y)
-                        $ x
+    x `mappend` y   = setA progPid (viewA progPid x) y
     mempty          = defaultProgram
 instance ProcessClass Program where
     pidL            = progPid
 instance RestartClass Program where
     runP x          = do
                         p <- spawnPID' (viewA progBin x) (viewA progArgs x)
+                        let w = viewA progWait x
+                        when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)
 
