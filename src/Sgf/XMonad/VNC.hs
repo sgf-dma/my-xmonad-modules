@@ -39,6 +39,10 @@ handleVnc xcf       = do
 -- is set (may be set from ~/.vnc/xstartup).
 isVnc :: IO Bool
 isVnc     = do
+    -- I need to uninstall signal handlers, which may left from previous
+    -- process, if xmonad is restarting (reloading) now. See
+    -- https://ghc.haskell.org/trac/ghc/ticket/5212 .
+    -- FIXME: Install handlers again?
     uninstallSignalHandlers
     c <- readProcess "xdpyinfo" [] ""
     xs <- getEnvironment
