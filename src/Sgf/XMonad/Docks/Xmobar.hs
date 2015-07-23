@@ -21,7 +21,7 @@ module Sgf.XMonad.Docks.Xmobar
     )
   where
 
-import Prelude hiding (catch)
+import Prelude
 import Data.Monoid
 import Control.Monad.State
 import Control.Exception
