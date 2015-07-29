@@ -212,7 +212,7 @@ instance RestartClass Xmobar where
         absXmobarConf   = liftIO $ do
           d <- getHomeDirectory
           let cf = viewA xmobarConf x
-          if isRelative cf then return (d </> cf) else return cf
+          return (if isRelative cf then d </> cf else cf)
     -- I need to reset pipe (to ignore output), because though process got
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.

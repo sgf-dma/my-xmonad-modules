@@ -53,4 +53,4 @@ readLexsM           = liftRead . readLexs
 
 
 anyP :: [a -> Bool] -> a -> Bool
-anyP fs             = any id . sequence fs
+anyP fs             = or . sequence fs
