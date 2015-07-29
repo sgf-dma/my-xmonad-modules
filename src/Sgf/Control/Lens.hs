@@ -13,6 +13,7 @@ module Sgf.Control.Lens
     , modifyAA
     , maybeL
     , nothingL
+    , lastL
     )
   where
 
@@ -61,4 +62,7 @@ maybeL f x          = maybe (pure x) (fmap Just . f) x
 -- record at all.
 nothingL :: LensA a (Maybe b)
 nothingL f x        = fmap (const x) (f Nothing)
+
+lastL :: LensA (Last a) (Maybe a)
+lastL f (Last x)    = fmap Last (f x)
 
