@@ -72,7 +72,12 @@ instance Monoid FocusHook where
                         . modifyA lockFocus' (`mappend` viewA lockFocus' y)
                         $ x
 
--- Handle focus changes and add key for toggling focus lock.
+-- Handle focus changes and add key for toggling focus lock. When handleFocus
+-- tries to keep focus still, it needs to know where new window will appear:
+-- on current workspace or not. But it can detect window shifts only performed
+-- in ManageHooks before its own ManageHook (manageFocus). Thus, `handleFocus`
+-- should be the last function applied to XConfig to avoid incorrect focus
+-- changes.
 handleFocus :: LayoutClass l Window => Maybe (ButtonMask, KeySym)
                -> [FocusHook] -> XConfig l -> XConfig l
 handleFocus ml ps cf    = (additionalKeys <*> addLockKey ml) $ cf
@@ -90,6 +95,18 @@ handleFocus ml ps cf    = (additionalKeys <*> addLockKey ml) $ cf
 addFocusHook :: FocusHook -> X ()
 addFocusHook x      = XS.modify (x `mappend`)
 
+-- Move focus down only, if specified window is on current workspace. This is
+-- main ManageHook part for keeping focus still: if new window appeared on
+-- current workspace, i need to move focus down; otherwise, if e.g. previous
+-- ManageHook functions move new window to another workspace, i don't need to
+-- shift focus. But for this to work, this function should be applied last in
+-- ManageHook's function composition (Endo monoid).
+focusDown :: Window -> WindowSet -> WindowSet
+focusDown w ws
+  | W.findTag w ws == Just cw   = W.focusDown ws
+  | otherwise                   = ws
+  where cw = W.currentTag ws
+
 -- ManageHook for switching (or not) focus.
 manageFocus :: ManageHook
 manageFocus         = do
@@ -98,7 +115,7 @@ manageFocus         = do
         pn = viewA newWindow x
         b  = fromMaybe False (viewA lockFocus x)
     return b <||> ((not <$> pn) <&&> onFocused False pf) -->
-      return (Endo W.focusDown)
+      ask >>= doF . focusDown
 
 -- Toggle stored focus lock state.
 toggleLock :: X ()
