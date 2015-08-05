@@ -34,9 +34,9 @@ onFocused b m       = liftX $
 -- Should window focus be kept on current window or switched to new one:
 -- focusedWindow ManageHook will run on focused window and, if matched (True),
 -- will keep focus still. newWindow ManageHook will run on new window and, if
--- matched, will overwrite focusedWindow result. lockFocus will overwrite
--- anything and just keep focus unchanged (Nothing means ignore, Just True -
--- keep focus, Just False - change to new window).
+-- matched, will overwrite focusedWindow result and shift focus to new window.
+-- lockFocus will overwrite anything and just keep focus unchanged (Nothing
+-- means ignore, Just True - keep focus, Just False - change to new window).
 data FocusHook      = FocusHook
                         { _focusedWindow    :: Query Bool
                         , _newWindow        :: Query Bool
