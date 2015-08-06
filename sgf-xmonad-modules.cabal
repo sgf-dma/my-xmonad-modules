@@ -26,6 +26,7 @@ library
                         Sgf.XMonad.Docks.Xmobar
                         Sgf.XMonad.Docks.Trayer
                         Sgf.XMonad.Restartable
+                        Sgf.XMonad.Restartable.Firefox
                         Sgf.XMonad.VNC
                         Sgf.XMonad.Trace
                         Sgf.XMonad.Focus
