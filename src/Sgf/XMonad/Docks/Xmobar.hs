@@ -5,12 +5,9 @@ module Sgf.XMonad.Docks.Xmobar
     -- I don't export this Lens, because it will allow to construct Xmobar
     -- value with broken (xmobarConf -> progArgs) relationship and then
     -- xmobarConf Lens will break Lens laws (see below). Moreover, Monoid
-    -- instance does not merge Program records at all. And, finally, merging
-    -- it in Monoid instance is bad: the only way to do it correctly is to
-    -- rewrite xmobarProg *strictly* after xmobarConf have rewritten.
-    -- Otheriwse, i'll have inconsistent value, where current xmobarConf is
-    -- not the last argument in progArgs, which lead to config added twice to
-    -- progArgs.
+    -- instance does not merge Program records at all, because some lenses
+    -- (representing xmobar command-line arguments) may rewrite some Program
+    -- fields (progArgs).
     -- , xmobarProg
     , xmobarConf
     , xmobarPP
@@ -67,29 +64,18 @@ data Xmobar      = Xmobar
 xmobarProg :: LensA Xmobar Program
 xmobarProg f z@(Xmobar {_xmobarProg = x})
                     = fmap (\x' -> z{_xmobarProg = x'}) (f x)
--- This Lens adds xmobarConf value to progArgs aside from just updating
--- xmobarConf, effectively defining function
--- (xmobarConf -> progArgs -> progArgs) on Xmobar fields. I assume, that
--- xmobar config is the last xmobar argument (and there is only one): if old
--- value is there, i replace it with new one, otherwise i add new value to the
--- end. Note, that such Lens definition breaks law: 'set l (get l a) a = a',
--- when applied to wrong Xmobar value (i.e. if a has non-null xmobarConf and
--- xmobarConf is not (or is not last) in progArgs).  Though, with current Eq
--- definition, this law holds even in that case. For ensuring, that law
--- doesn't break, i should always overwrite default Xmobar values.
+-- This is Lens to xmobar command-line argument, so it calls writeProgArgs
+-- function after updating Xmobar record for writing current Xmobar state to
+-- progArgs.  Note, that such Lens definition breaks law: 'set l (get l a) a =
+-- a', when applied to wrong Xmobar value (e.g. if a has non-null xmobarConf
+-- and null progArgs; such value can be created by first applying xmobarConf
+-- lens and then manually applying (xmobarProg .  progArgs) lens).  Though,
+-- with current Eq definition, this law holds even in that case. For ensuring,
+-- that law doesn't break, i should always overwrite default Xmobar values and
+-- do not export xmobarProg lens.
 xmobarConf :: LensA Xmobar FilePath
-xmobarConf f z@(Xmobar {_xmobarConf = xcf, _xmobarProg = xp})
-                    = fmap (\xcf' -> z
-                            { _xmobarConf = xcf'
-                            , _xmobarProg = modifyA progArgs
-                                                    (updateConf xcf') xp
-                            }
-                        ) (f xcf)
-  where
-    updateConf :: FilePath -> [String] -> [String]
-    updateConf xcf' xargs = case splitAt 1 (reverse xargs) of
-                              ([cf], _) | cf == xcf -> init xargs ++ [xcf']
-                              _                     ->      xargs ++ [xcf']
+xmobarConf f z@(Xmobar {_xmobarConf = x})
+                    = fmap (\x' -> writeProgArgs z{_xmobarConf = x'}) (f x)
 -- Lens to PP, which overwrites ppOutput: generally, ppOutput is set in runP
 -- and should write to pipe to xmobar, so i should not allow modifying it for
 -- anyone. So (old _xmobarPP value is on the left of plus sign, new - on the
@@ -130,6 +116,15 @@ defaultXmobar'      = Xmobar
                         , _xmobarToggle = Nothing
                         , _xmobarLaunch = []
                         }
+-- Create progArgs from Xmobar records representing xmobar command-line
+-- arguments. This function should be called from all Lenses to such records.
+-- This is one-way conversion, i.e. old value of progArgs will be overwritten.
+-- So, if i want to provide a way for user for adding unknown options to
+-- progArgs, i should create special Xmobar record for that and merge its
+-- value here.
+writeProgArgs :: Xmobar -> Xmobar
+writeProgArgs x	    = let xcf = viewA xmobarConf x
+		      in  setA (xmobarProg . progArgs) [xcf] x
 
 -- Default expected by user's of Xmobar type. Usually it should be used
 -- instead of type default. Particularly, this ensures, that all Lens laws
