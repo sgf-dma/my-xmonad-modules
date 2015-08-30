@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GADTs #-}
 
 module Sgf.XMonad.Restartable
     ( modifyXS
@@ -24,18 +26,24 @@ module Sgf.XMonad.Restartable
     , addProg
     , launchProg
     , handleProgs
+    , Arguments (..)
     , Program
     , progBin
     , progArgs
     , progWait
+    , progWorkspace
+    , progLaunchKey
+    , progStartup
     --, progPid
     , defaultProgram
+    , progCmd
     )
   where
 
 import Data.List
 import Data.Maybe
 import Data.Monoid
+import Data.Typeable
 import Control.Applicative
 import Control.Monad
 import Control.Exception (try, IOException)
@@ -191,6 +199,7 @@ restartP            = withProcessP restartP'
 toggleP :: RestartClass a => a -> X ()
 toggleP             = withProcessP toggleP'
 
+-- FIXME: Should i trace only one program or all of them?
 -- Print all tracked in Extensible State programs with given type.
 traceP :: RestartClass a => a -> X ()
 traceP y            = getProcesses y >>= mapM_ (trace . show)
@@ -284,6 +293,10 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
                 ]
     addShowKey Nothing _ = []
 
+class Arguments a where
+    serialize   :: a -> [String]
+    defaultArgs :: a
+
 -- Default program providing set of fields needed for regular program and
 -- default runP implementation.  Note: when using newtypes around Program
 -- never define `doLaunchP (p x) = doLaunchP x`, because in that case value of
@@ -291,25 +304,33 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
 -- (p Program) (i.e. newtype). Instead, i should define `doLaunchP` for
 -- newtype p directly, e.g. `doLaunchP = restartP` (or not define at all and
 -- use default).
-data Program        = Program
-                        { _progPid  :: Maybe ProcessID
-                        , _progBin  :: FilePath
-                        , _progArgs :: [String]
-                        , _progWait :: Int
-                        }
-  deriving (Show, Read, Typeable)
-progPid :: LensA Program (Maybe ProcessID)
+data Program a where
+    Program :: Arguments a =>
+               { _progPid  :: Maybe ProcessID
+               , _progBin  :: FilePath
+               , _progArgs :: a
+               , _progWait :: Int
+               -- Simplified manageP .
+               , _progWorkspace :: String
+               , _progLaunchKey :: [(ButtonMask, KeySym)]
+               , _progStartup :: Bool
+               } -> Program a
+deriving instance Typeable1 Program
+deriving instance Show a => Show (Program a)
+deriving instance (Arguments a, Read a) => Read (Program a)
+
+progPid :: LensA (Program a) (Maybe ProcessID)
 progPid f z@(Program {_progPid = x})
                     = fmap (\x' -> z{_progPid = x'}) (f x)
-progBin :: LensA Program FilePath
+progBin :: LensA (Program a) FilePath
 progBin f z@(Program {_progBin = x})
                     = fmap (\x' -> z{_progBin = x'}) (f x)
-progArgs :: LensA Program [String]
+progArgs :: LensA (Program a) a
 progArgs f z@(Program {_progArgs = x})
                     = fmap (\x' -> z{_progArgs = x'}) (f x)
 -- Wait specified number of microseconds after spawning a program. Only
 -- positive integers (or zero) allowed in progWait .
-progWait :: LensA Program Int
+progWait :: LensA (Program a) Int
 progWait f z@(Program {_progWait = x})
                     = fmap (\x' -> z{_progWait = unsignedInt x'}) (f x)
   where
@@ -317,27 +338,50 @@ progWait f z@(Program {_progWait = x})
     unsignedInt i
       | i < 0       = 0
       | otherwise   = i
-defaultProgram :: Program
+progWorkspace :: LensA (Program a) String
+progWorkspace f z@(Program {_progWorkspace = x})
+                    = fmap (\x' -> z{_progWorkspace = x'}) (f x)
+progLaunchKey :: LensA (Program a) [(ButtonMask, KeySym)]
+progLaunchKey f z@(Program {_progLaunchKey = x})
+                    = fmap (\x' -> z{_progLaunchKey = x'}) (f x)
+progStartup :: LensA (Program a) Bool
+progStartup f z@(Program {_progStartup = x})
+                    = fmap (\x' -> z{_progStartup = x'}) (f x)
+defaultProgram :: Arguments a => Program a
 defaultProgram      = Program
                         { _progPid  = Nothing
                         , _progBin  = ""
-                        , _progArgs = []
+                        , _progArgs = defaultArgs
                         , _progWait = 0
+                        , _progWorkspace = ""
+                        , _progLaunchKey = []
+                        , _progStartup = True
                         }
+
+-- Just a helper function.
+progCmd :: Arguments a => Program a -> (FilePath, [String])
+progCmd x           = (viewA progBin x, serialize (viewA progArgs x))
 
 -- I assume only one instance of each program by default. I.e. different
 -- programs should have different types.
-instance Eq Program where
-    _ == _          = True
-instance Monoid Program where
+instance Eq a => Eq (Program a) where
+    x == y          =      viewA progBin  x == viewA progBin  y
+                        && viewA progArgs x == viewA progArgs y
+instance Arguments a => Monoid (Program a) where
     x `mappend` y   = setA progPid (viewA progPid x) y
     mempty          = defaultProgram
-instance ProcessClass Program where
+instance (Arguments a, Typeable a, Show a, Read a, Eq a)
+         => ProcessClass (Program a) where
     pidL            = progPid
-instance RestartClass Program where
+instance (Arguments a, Typeable a, Show a, Read a, Eq a)
+         => RestartClass (Program a) where
     runP x          = do
-                        p <- spawnPID' (viewA progBin x) (viewA progArgs x)
                         let w = viewA progWait x
+                        p <- uncurry spawnPID' (progCmd x)
                         when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)
+    launchAtStartup = viewA progStartup
+    launchKey       = viewA progLaunchKey
+    manageP x       = let w = viewA progWorkspace x
+                      in  if null w then idHook else doShift w
 
