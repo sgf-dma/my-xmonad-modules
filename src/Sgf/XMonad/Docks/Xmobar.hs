@@ -3,7 +3,6 @@
 module Sgf.XMonad.Docks.Xmobar
     ( XmobarArgs
     , xmobarConf
-    , defaultXmobarArgs
     , Xmobar
     , xmobarProg
     , xmobarPP
@@ -52,11 +51,9 @@ data XmobarArgs     = XmobarArgs {_xmobarConf :: FilePath}
 xmobarConf :: LensA XmobarArgs FilePath
 xmobarConf f z@(XmobarArgs {_xmobarConf = x})
                     = fmap (\x' -> z{_xmobarConf = x'}) (f x)
-defaultXmobarArgs :: XmobarArgs
-defaultXmobarArgs   = XmobarArgs {_xmobarConf = ".xmobarcc"}
 instance Arguments XmobarArgs where
     serialize x     = [viewA xmobarConf x]
-    defaultArgs     = defaultXmobarArgs
+    defaultArgs     = XmobarArgs {_xmobarConf = ".xmobarcc"}
 
 -- This Xmobar definition suitable for launching several xmobars. They will
 -- be distinguished by config file name.
