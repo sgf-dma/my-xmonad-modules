@@ -4,10 +4,7 @@ module Sgf.XMonad.Docks.Xmobar
     ( Xmobar
     -- I don't export this Lens, because it will allow to construct Xmobar
     -- value with broken (xmobarConf -> progArgs) relationship and then
-    -- xmobarConf Lens will break Lens laws (see below). Moreover, Monoid
-    -- instance does not merge Program records at all, because some lenses
-    -- (representing xmobar command-line arguments) may rewrite some Program
-    -- fields (progArgs).
+    -- xmobarConf Lens will break Lens laws (see below).
     -- , xmobarProg
     , xmobarConf
     , xmobarPP
@@ -18,8 +15,8 @@ module Sgf.XMonad.Docks.Xmobar
     )
   where
 
-import Prelude
 import Data.Monoid
+import Data.Function (on)
 import Control.Monad.State
 import Control.Exception
 import System.IO (hPutStrLn)
@@ -123,8 +120,8 @@ defaultXmobar'      = Xmobar
 -- progArgs, i should create special Xmobar record for that and merge its
 -- value here.
 writeProgArgs :: Xmobar -> Xmobar
-writeProgArgs x	    = let xcf = viewA xmobarConf x
-		      in  setA (xmobarProg . progArgs) [xcf] x
+writeProgArgs x     = let xcf = viewA xmobarConf x
+                      in  setA (xmobarProg . progArgs) [xcf] x
 
 -- Default expected by user's of Xmobar type. Usually it should be used
 -- instead of type default. Particularly, this ensures, that all Lens laws
@@ -172,19 +169,18 @@ instance Read Xmobar where
         app_prec    = 10
 
 instance Eq Xmobar where
-    x == y
-      | viewA xmobarConf x == viewA xmobarConf y = True
-      | otherwise   = False
--- Program Xmobar records are *not* merged. After all, xmobarProg does not
--- exported and noone should be able to alter Program record in any way.  I.e.
--- all Program records should be derivable from Xmobar own records. Only in
--- that case i can preserve record dependencies (like in xmobarConf).
+    (==)            = (==) `on` viewA xmobarConf
+-- Just use second argument, but *merge* Program records. I need to mappend
+-- Program records, because Program may contain some fields, which i don't
+-- know how to merge or don't know about them at all.  But when some Xmobar
+-- lenses modify Program record (e.g. xmobarConf), merging Program records may
+-- lead to incorrect (for Xmobar type) resulting Program (and lens laws won't
+-- hold anymore). Thus, to ensure, that result is correct, i call
+-- `writeProgArgs` for overwriting "generated" (from Xmobar records) part of
+-- new Program record.
 instance Monoid Xmobar where
-    x `mappend` y   = setA xmobarConf (viewA xmobarConf y)
-                        . setA xmobarPP (viewA xmobarPP y)
-                        . setA xmobarToggle (viewA xmobarToggle y)
-                        . setA xmobarLaunch (viewA xmobarLaunch y)
-                        $ x
+    x `mappend` y   = writeProgArgs
+                        $ modifyA xmobarProg (viewA xmobarProg x `mappend`) y
     mempty          = defaultXmobar
 instance ProcessClass Xmobar where
     pidL            = xmobarProg . pidL

@@ -28,6 +28,7 @@ module Sgf.XMonad.Restartable
     , progBin
     , progArgs
     , progWait
+    --, progPid
     , defaultProgram
     )
   where
