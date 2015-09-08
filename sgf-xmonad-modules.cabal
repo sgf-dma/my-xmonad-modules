@@ -24,6 +24,7 @@ cabal-version:       >= 1.8
 library
     exposed-modules:    Sgf.XMonad.Docks
                         Sgf.XMonad.Docks.Xmobar
+                        Sgf.XMonad.Docks.Trayer
                         Sgf.XMonad.Restartable
                         Sgf.XMonad.VNC
                         Sgf.XMonad.Trace
