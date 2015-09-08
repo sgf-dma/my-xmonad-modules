@@ -52,7 +52,8 @@ xmobarConf :: LensA XmobarArgs FilePath
 xmobarConf f z@(XmobarArgs {_xmobarConf = x})
                     = fmap (\x' -> z{_xmobarConf = x'}) (f x)
 instance Arguments XmobarArgs where
-    serialize x     = [viewA xmobarConf x]
+    serialize x     = let xcf = viewA xmobarConf x
+                      in  whenL (not . null $ xcf) [xcf]
     defaultArgs     = XmobarArgs {_xmobarConf = ".xmobarcc"}
 
 -- This Xmobar definition suitable for launching several xmobars. They will
