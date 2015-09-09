@@ -9,6 +9,7 @@ module Sgf.Data.List
     , readLexs
     , readLexsM
     , anyP
+    , whenL
     )
   where
 
@@ -54,3 +55,9 @@ readLexsM           = liftRead . readLexs
 
 anyP :: [a -> Bool] -> a -> Bool
 anyP fs             = or . sequence fs
+
+whenL :: Bool -> [a] -> [a]
+whenL p xs
+ | p                = xs
+ | otherwise        = []
+
