@@ -27,6 +27,7 @@ module Sgf.XMonad.Restartable
     , launchProg
     , handleProgs
     , Arguments (..)
+    , NoArgs (..)
     , Program
     , progBin
     , progArgs
@@ -296,6 +297,11 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
 class Arguments a where
     serialize   :: a -> [String]
     defaultArgs :: a
+data NoArgs         = NoArgs
+  deriving (Show, Read, Typeable, Eq)
+instance Arguments NoArgs where
+    serialize _     = []
+    defaultArgs     = NoArgs
 
 -- Default program providing set of fields needed for regular program and
 -- default runP implementation.  Note: when using newtypes around Program
@@ -310,8 +316,7 @@ data Program a where
                , _progBin  :: FilePath
                , _progArgs :: a
                , _progWait :: Int
-               -- Simplified manageP .
-               , _progWorkspace :: String
+               , _progWorkspace :: String   -- Simplified manageP .
                , _progLaunchKey :: [(ButtonMask, KeySym)]
                , _progStartup :: Bool
                } -> Program a
