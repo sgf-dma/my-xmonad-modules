@@ -27,7 +27,7 @@ trayerArgs f z@(TrayerArgs {_trayerArgs = x})
 instance Eq TrayerArgs where
     _ == _          = True
 instance Arguments TrayerArgs where
-    serialize (TrayerArgs args) = args
+    serialize (TrayerArgs args) = return args
     defaultArgs     = TrayerArgs
                         [ "--SetDockType", "true"
                         , "--SetPartialStrut", "true"

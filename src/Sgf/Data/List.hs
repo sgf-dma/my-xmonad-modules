@@ -9,10 +9,12 @@ module Sgf.Data.List
     , readLexs
     , readLexsM
     , anyP
-    , whenL
+    , when'
+    , unless'
     )
   where
 
+import Data.Monoid
 import Control.Monad.State
 
 insertUniq :: Eq a => a -> [a] -> [a]
@@ -56,8 +58,13 @@ readLexsM           = liftRead . readLexs
 anyP :: [a -> Bool] -> a -> Bool
 anyP fs             = or . sequence fs
 
-whenL :: Bool -> [a] -> [a]
-whenL p xs
- | p                = xs
- | otherwise        = []
+when' :: (Monoid b, Monad m) => Bool -> m b -> m b
+when' p mx
+ | p                = mx
+ | otherwise        = return mempty
+
+unless' :: (Monoid b, Monad m) => Bool -> m b -> m b
+unless' p mx
+ | not p            = mx
+ | otherwise        = return mempty
 

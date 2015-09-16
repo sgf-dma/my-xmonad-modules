@@ -11,6 +11,7 @@ module Sgf.XMonad.Restartable.Firefox
 
 import Data.Typeable
 import Data.Function (on)
+import Control.Monad
 
 import Sgf.Data.List
 import Sgf.Control.Lens
@@ -32,10 +33,13 @@ firefoxNoRemote f z@(FirefoxArgs {_firefoxNoRemote = x})
 instance Eq FirefoxArgs where
     (==)            = (==) `on` viewA firefoxProfile
 instance Arguments FirefoxArgs where
-    serialize x     = let xp = viewA firefoxProfile x
-                          xr = viewA firefoxNoRemote x
-                      in     whenL (not . null $ xp) ["-P", xp]
-                          ++ whenL xr                ["-no-remote"]
+    serialize x     = do
+                        let xp = viewA firefoxProfile x
+                            xr = viewA firefoxNoRemote x
+                        liftM concat . sequence $
+                          [ unless' (null xp) (return ["-P", xp])
+                          , when'    xr       (return ["-no-remote"])
+                          ]
     defaultArgs     = FirefoxArgs
                         { _firefoxProfile = "default"
                         , _firefoxNoRemote = True
