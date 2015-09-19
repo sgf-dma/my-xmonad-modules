@@ -26,7 +26,7 @@ instance Eq ShellArgs where
     _ == _          = True
 -- Execute even with empty cmd.
 instance Arguments ShellArgs where
-    serialize x     = ["-c", encodeString $ viewA shellCmd x]
+    serialize x     = return ["-c", encodeString $ viewA shellCmd x]
     defaultArgs     = ShellArgs {_shellCmd = ""}
 
 type Shell          = Program ShellArgs

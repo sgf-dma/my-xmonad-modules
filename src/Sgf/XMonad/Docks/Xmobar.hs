@@ -42,6 +42,15 @@ resetPipe           = setA ppOutputL (const (return ()))
 defaultXmobarPP :: L.PP
 defaultXmobarPP     = resetPipe L.xmobarPP
 
+-- If only filename is specified (e.g. for xmobar conf), it's taken from home
+-- directory. Otherwise, the path preserved as is. This adds default for most
+-- common case (filename only) and still allows to specify arbitrary path.
+normaliseConf :: MonadIO m => FilePath -> m FilePath
+normaliseConf cf
+  | cf /= [] && takeFileName cf == cf
+                    = liftIO getHomeDirectory >>= return . (</> cf)
+  | otherwise       = return cf
+
 -- XmobarArgs should provide options *with* container. I use records as
 -- container, because only in that case i may easily define Eq instance to
 -- consider only certain records (options). Any list-like container will
@@ -52,9 +61,10 @@ xmobarConf :: LensA XmobarArgs FilePath
 xmobarConf f z@(XmobarArgs {_xmobarConf = x})
                     = fmap (\x' -> z{_xmobarConf = x'}) (f x)
 instance Arguments XmobarArgs where
-    serialize x     = let xcf = viewA xmobarConf x
-                      in  whenL (not . null $ xcf) [xcf]
     defaultArgs     = XmobarArgs {_xmobarConf = ".xmobarcc"}
+    serialize x     = do
+                        xcf <- normaliseConf (viewA xmobarConf x)
+                        unless' (null xcf) (return [xcf])
 
 -- This Xmobar definition suitable for launching several xmobars. They will
 -- be distinguished by config file name.
@@ -142,24 +152,14 @@ instance ProcessClass Xmobar where
     pidL            = xmobarProg . pidL
 instance RestartClass Xmobar where
     runP x          = userCodeDef x $ do
-        xcf <- absXmobarConf
-        liftIO $ doesFileExist' xcf `catch` (throw . XmobarConfException)
         case viewA xmobarPP' x of
           Just _    -> do
-            (h, p) <- uncurry spawnPipe' . progCmd $ viewA xmobarProg x
+            (h, p) <- progCmd (viewA xmobarProg x) >>= uncurry spawnPipe'
             return
               . setA pidL (Just p)
               . setA (xmobarPP' . maybeL . ppOutputL) (hPutStrLn h)
               $ x
           Nothing   -> modifyAA xmobarProg runP x
-      where
-        -- If xmobarConf is relative, take it from home directory, not from
-        -- current directory.
-        absXmobarConf :: MonadIO m => m FilePath
-        absXmobarConf   = liftIO $ do
-          d <- getHomeDirectory
-          let cf = viewA (xmobarProg . progArgs . xmobarConf) x
-          return (if isRelative cf then d </> cf else cf)
     -- I need to reset pipe (to ignore output), because though process got
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.

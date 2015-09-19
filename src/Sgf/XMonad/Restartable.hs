@@ -295,12 +295,12 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
     addShowKey Nothing _ = []
 
 class Arguments a where
-    serialize   :: a -> [String]
+    serialize   :: MonadIO m => a -> m [String]
     defaultArgs :: a
 data NoArgs         = NoArgs
   deriving (Show, Read, Typeable, Eq)
 instance Arguments NoArgs where
-    serialize _     = []
+    serialize _     = return []
     defaultArgs     = NoArgs
 
 -- Default program providing set of fields needed for regular program and
@@ -364,8 +364,11 @@ defaultProgram      = Program
                         }
 
 -- Just a helper function.
-progCmd :: Arguments a => Program a -> (FilePath, [String])
-progCmd x           = (viewA progBin x, serialize (viewA progArgs x))
+progCmd :: (MonadIO m, Arguments a) => Program a -> m (FilePath, [String])
+progCmd x           = do
+                        args <- serialize (viewA progArgs x)
+                        return (viewA progBin x, args)
+
 
 -- I assume only one instance of each program by default. I.e. different
 -- programs should have different types.
@@ -382,7 +385,7 @@ instance (Arguments a, Typeable a, Show a, Read a, Eq a)
          => RestartClass (Program a) where
     runP x          = do
                         let w = viewA progWait x
-                        p <- uncurry spawnPID' (progCmd x)
+                        p <- progCmd x >>= uncurry spawnPID'
                         when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)
     launchAtStartup = viewA progStartup
