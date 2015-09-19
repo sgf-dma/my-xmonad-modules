@@ -29,6 +29,7 @@ library
                         Sgf.XMonad.Restartable.Firefox
                         Sgf.XMonad.Restartable.Shell
                         Sgf.XMonad.Restartable.Feh
+                        Sgf.XMonad.Restartable.XTerm
                         Sgf.XMonad.VNC
                         Sgf.XMonad.Trace
                         Sgf.XMonad.Focus
