@@ -48,7 +48,7 @@ defaultXmobarPP     = resetPipe L.xmobarPP
 normaliseConf :: MonadIO m => FilePath -> m FilePath
 normaliseConf cf
   | cf /= [] && takeFileName cf == cf
-                    = liftIO getHomeDirectory >>= return . (</> cf)
+                    = liftM (</> cf) (liftIO getHomeDirectory)
   | otherwise       = return cf
 
 -- XmobarArgs should provide options *with* container. I use records as
@@ -151,8 +151,7 @@ instance Monoid Xmobar where
 instance ProcessClass Xmobar where
     pidL            = xmobarProg . pidL
 instance RestartClass Xmobar where
-    runP x          = userCodeDef x $ do
-        case viewA xmobarPP' x of
+    runP x          = userCodeDef x $ case viewA xmobarPP' x of
           Just _    -> do
             (h, p) <- progCmd (viewA xmobarProg x) >>= uncurry spawnPipe'
             return
