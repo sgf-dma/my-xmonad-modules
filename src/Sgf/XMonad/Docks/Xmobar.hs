@@ -61,7 +61,7 @@ xmobarConf :: LensA XmobarArgs FilePath
 xmobarConf f z@(XmobarArgs {_xmobarConf = x})
                     = fmap (\x' -> z{_xmobarConf = x'}) (f x)
 instance Arguments XmobarArgs where
-    defaultArgs     = XmobarArgs {_xmobarConf = ".xmobarcc"}
+    defaultArgs     = XmobarArgs {_xmobarConf = ".xmobarrc"}
     serialize x     = do
                         xcf <- normaliseConf (viewA xmobarConf x)
                         unless' (null xcf) (return [xcf])
