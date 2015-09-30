@@ -19,6 +19,7 @@ module Sgf.XMonad.Actions.Submap (
                              submapDefault
                             ) where
 import Data.Bits
+import Data.Maybe (fromMaybe)
 import XMonad hiding (keys)
 import qualified Data.Map as M
 import Control.Monad.Fix (fix)
@@ -58,15 +59,15 @@ For detailed instructions on editing your key bindings, see
 --   corresponding action, or does nothing if the key is not found in
 --   the map.
 submap :: M.Map (KeyMask, KeySym) (X ()) -> X ()
-submap keys = submapDefault (return ()) keys
+submap = submapDefault (return ())
 
 -- | Like 'submap', but executes a default action if the key did not match.
 submapDefault :: X () -> M.Map (KeyMask, KeySym) (X ()) -> X ()
 submapDefault defAction keys = do
     XConf { theRoot = root, display = d } <- ask
 
-    io $ grabKeyboard d root False grabModeAsync grabModeAsync currentTime
-    io $ grabPointer d root False buttonPressMask grabModeAsync grabModeAsync
+    _ <- io $ grabKeyboard d root False grabModeAsync grabModeAsync currentTime
+    _ <- io $ grabPointer d root False buttonPressMask grabModeAsync grabModeAsync
                      none none currentTime
 
     (m, s) <- io $ allocaXEvent $ \p -> fix $ \nextkey -> do
@@ -85,4 +86,4 @@ submapDefault defAction keys = do
     io $ ungrabPointer d currentTime
     io $ ungrabKeyboard d currentTime
 
-    maybe defAction id (M.lookup (m', s) keys)
+    fromMaybe defAction (M.lookup (m', s) keys)
