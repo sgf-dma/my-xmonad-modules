@@ -1,6 +1,7 @@
 
 module Sgf.XMonad.Trace
-    ( traceCurWorkspace
+    ( showWindow
+    , traceCurWorkspace
     , traceAllWindows
     , traceFloat
     , traceNew
@@ -17,23 +18,30 @@ import XMonad
 import qualified XMonad.StackSet as W
 
 
+-- Show window title with id (may be used by `xwininfo -id`).
+showWindow :: Window -> X String
+showWindow w	    = do
+    t <- runQuery title w
+    return ("'" ++ t ++ "' - " ++ show w)
+
 -- Log all windows (tiled and floating).
 traceCurWorkspace :: X ()
 traceCurWorkspace   = do
     trace "Windows on current workspace:"
     withWindowSet $ \ws -> do
       whenJust (W.stack . W.workspace . W.current $ ws) $ \s -> do
-        ts <- mapM (runQuery title) (W.integrate s)
+        ts <- mapM showWindow (W.integrate s)
         trace $ "Tiled: " ++ show ts
-      fs <- mapM (runQuery title) (M.keys . W.floating $ ws)
+      fs <- mapM showWindow (M.keys . W.floating $ ws)
       unless (null fs) $ trace ("Floating: " ++ show fs)
 
+-- Log all windows on all workspaces.
 traceAllWindows :: X ()
 traceAllWindows     = do
     trace "All windows:"
     withWindowSet $ \ws -> forM_ (W.workspaces ws) $ \w ->
       whenJust (W.stack w) $ \s -> do
-        ts <- mapM (runQuery title) (W.integrate s)
+        ts <- mapM showWindow (W.integrate s)
         trace $ "On workspace '" ++ W.tag w ++ "': " ++ show ts
 
 -- Log windows, which would be made floating by default (particularly, by
@@ -41,7 +49,7 @@ traceAllWindows     = do
 traceFloat :: ManageHook
 traceFloat          = do
     w <- ask
-    t <- title
+    xs <- liftX (showWindow w)
     liftX $ withDisplay $ \d -> do
       sh <- io $ getWMNormalHints d w
       let isFixedSize = sh_min_size sh /= Nothing
@@ -51,7 +59,7 @@ traceFloat          = do
             | isTransient = "Transient window "
             | otherwise   = ""
       when (isFixedSize || isTransient) $
-        trace (f ++ show w ++ " \"" ++ t ++ "\"")
+        trace (f ++ xs)
     return idHook
 
 -- Note, that i can't print new window workspace from ManageHook: user's
@@ -65,7 +73,7 @@ traceFloat          = do
 -- after and can find workspace of new window.
 traceNew :: ManageHook
 traceNew            = do
-    t <- title
-    trace $ "New window: \"" ++ t ++ "\""
+    xs <- ask >>= liftX . showWindow
+    trace $ "New window: " ++ xs
     return (Endo id)
 
