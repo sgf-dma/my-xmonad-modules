@@ -3,7 +3,7 @@
 module Sgf.XMonad.Restartable.Firefox
     ( FirefoxArgs
     , firefoxProfile
-    -- , firefoxNoRemote
+    , firefoxNoRemote
     , firefoxNewInstance
     , Firefox
     , defaultFirefox
@@ -18,11 +18,9 @@ import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Restartable
 
--- I've added record for "--no-remote" only for completeness, there is almost
--- no sense to launch FF with profile set and *without* "--no-remote".
 data FirefoxArgs    = FirefoxArgs
-                        { _firefoxProfile   :: String
-                        , _firefoxNoRemote  :: Bool
+                        { _firefoxProfile       :: String
+                        , _firefoxNoRemote      :: Bool
                         , _firefoxNewInstance   :: Bool 
                         }
   deriving (Show, Read, Typeable)
@@ -48,8 +46,8 @@ instance Arguments FirefoxArgs where
                           , when'    xi       (return ["--new-instance"])
                           ]
     defaultArgs     = FirefoxArgs
-                        { _firefoxProfile = "default"
-                        , _firefoxNoRemote = False
+                        { _firefoxProfile       = "default"
+                        , _firefoxNoRemote      = False
                         , _firefoxNewInstance   = True
                         }
 
