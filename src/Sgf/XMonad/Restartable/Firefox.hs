@@ -3,7 +3,8 @@
 module Sgf.XMonad.Restartable.Firefox
     ( FirefoxArgs
     , firefoxProfile
-    -- , firefoxNoRemote
+    , firefoxNoRemote
+    , firefoxNewInstance
     , Firefox
     , defaultFirefox
     )
@@ -17,11 +18,10 @@ import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Restartable
 
--- I've added record for "--no-remote" only for completeness, there is almost
--- no sense to launch FF with profile set and *without* "--no-remote".
 data FirefoxArgs    = FirefoxArgs
-                        { _firefoxProfile   :: String
-                        , _firefoxNoRemote  :: Bool
+                        { _firefoxProfile       :: String
+                        , _firefoxNoRemote      :: Bool
+                        , _firefoxNewInstance   :: Bool 
                         }
   deriving (Show, Read, Typeable)
 firefoxProfile :: LensA FirefoxArgs String
@@ -30,19 +30,25 @@ firefoxProfile f z@(FirefoxArgs {_firefoxProfile = x})
 firefoxNoRemote :: LensA FirefoxArgs Bool
 firefoxNoRemote f z@(FirefoxArgs {_firefoxNoRemote = x})
                     = fmap (\x' -> z{_firefoxNoRemote = x'}) (f x)
+firefoxNewInstance :: LensA FirefoxArgs Bool
+firefoxNewInstance f z@(FirefoxArgs {_firefoxNewInstance = x})
+                    = fmap (\x' -> z{_firefoxNewInstance = x'}) (f x)
 instance Eq FirefoxArgs where
     (==)            = (==) `on` viewA firefoxProfile
 instance Arguments FirefoxArgs where
     serialize x     = do
                         let xp = viewA firefoxProfile x
                             xr = viewA firefoxNoRemote x
+                            xi = viewA firefoxNewInstance x
                         liftM concat . sequence $
                           [ unless' (null xp) (return ["-P", xp])
-                          , when'    xr       (return ["-no-remote"])
+                          , when'    xr       (return ["--no-remote"])
+                          , when'    xi       (return ["--new-instance"])
                           ]
     defaultArgs     = FirefoxArgs
-                        { _firefoxProfile = "default"
-                        , _firefoxNoRemote = True
+                        { _firefoxProfile       = "default"
+                        , _firefoxNoRemote      = False
+                        , _firefoxNewInstance   = True
                         }
 
 type Firefox        = Program FirefoxArgs
