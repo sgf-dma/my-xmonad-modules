@@ -1,8 +1,9 @@
 
 module Sgf.XMonad.Trace
     ( showWindow
-    , traceCurWorkspace
-    , traceAllWindows
+    , traceWorkspace
+    , traceCurrentWorkspace
+    , traceAllWorkspaces
     , traceFloat
     , traceNew
     )
@@ -24,25 +25,28 @@ showWindow w	    = do
     t <- runQuery title w
     return ("'" ++ t ++ "' - " ++ show w)
 
--- Log all windows (tiled and floating).
-traceCurWorkspace :: X ()
-traceCurWorkspace   = do
-    trace "Windows on current workspace:"
+-- Log tiled and floating windows on specified workspace.
+traceWorkspace :: WorkspaceId -> X ()
+traceWorkspace i    = do
     withWindowSet $ \ws -> do
-      whenJust (W.stack . W.workspace . W.current $ ws) $ \s -> do
-        ts <- mapM showWindow (W.integrate s)
-        trace $ "Tiled: " ++ show ts
-      fs <- mapM showWindow (M.keys . W.floating $ ws)
-      unless (null fs) $ trace ("Floating: " ++ show fs)
+      let xs  = W.index . W.view i $ ws
+          fxs = [x | x <- xs, M.member x (W.floating ws)]
+          txs = [x | x <- xs, x `notElem` fxs]
+      ts <- mapM showWindow txs
+      fs <- mapM showWindow fxs
+      trace $ "<" ++ i ++ "> tiled: "    ++ show ts
+      trace $ "<" ++ i ++ "> floating: " ++ show fs
 
+-- Log all windows on current workspace.
+traceCurrentWorkspace :: X ()
+traceCurrentWorkspace   = do
+    trace "Windows on current workspace: "
+    withWindowSet $ traceWorkspace . W.currentTag
 -- Log all windows on all workspaces.
-traceAllWindows :: X ()
-traceAllWindows     = do
-    trace "All windows:"
-    withWindowSet $ \ws -> forM_ (W.workspaces ws) $ \w ->
-      whenJust (W.stack w) $ \s -> do
-        ts <- mapM showWindow (W.integrate s)
-        trace $ "On workspace '" ++ W.tag w ++ "': " ++ show ts
+traceAllWorkspaces :: X ()
+traceAllWorkspaces      = do
+    trace "All windows: "
+    withWindowSet $ mapM_ (traceWorkspace . W.tag) . W.workspaces
 
 -- Log windows, which would be made floating by default (particularly, by
 -- `manage` from XMonad/Operations.hs), and why they would.
