@@ -9,6 +9,7 @@ module Sgf.XMonad.Restartable
     , withProcess
     , getProcess
     , getProcesses
+    , manageProcess
     , findWins
     , RestartClass (..)
     , withProcessP
@@ -99,6 +100,14 @@ getProcess y        = XS.gets (find (== y) . viewA processList)
 -- process.
 getProcesses :: ProcessClass a => a -> X [a]
 getProcesses y      = XS.gets (viewA processList `asTypeOf` const [y])
+
+-- Run given ManageHook, if new process PID matches.
+manageProcess :: ProcessClass a => ManageHook -> Maybe a -> MaybeManageHook
+manageProcess mh mx = do
+    mp <- pid
+    if isJust mx && mp == viewA pidL (fromJust mx)
+      then Just <$> mh
+      else return Nothing
 
 -- Find all windows, which have pid of given ProcessClass instance in
 -- _NET_WM_PID property.
@@ -248,12 +257,7 @@ launchProg x (XConfig {modMask = m}) = do
 -- current Window pid (from _NET_WM_PID) matches pid of any program with the
 -- same type stored in Extensible State.
 manageProg :: RestartClass a => a -> MaybeManageHook
-manageProg y        = do
-    mp <- pid
-    mx <- liftX $ getProcess y
-    if isJust mx && mp == viewA pidL (fromJust mx)
-      then Just <$> manageP y
-      else return Nothing
+manageProg y        = liftX (getProcess y) >>= manageProcess (manageP y)
 
 -- Merge ProgConfig-s into existing XConfig properly and add key for showing
 -- program launch keys.
