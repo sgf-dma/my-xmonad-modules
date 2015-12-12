@@ -6,10 +6,12 @@ module Sgf.XMonad.Trace
     , traceAllWorkspaces
     , traceFloat
     , traceNew
+    , traceWindowSet
     )
   where
 
 import Data.Maybe
+import Data.List
 import Data.Monoid
 import qualified Data.Map as M
 import Control.Applicative
@@ -21,7 +23,7 @@ import qualified XMonad.StackSet as W
 
 -- Show window title with id (may be used by `xwininfo -id`).
 showWindow :: Window -> X String
-showWindow w	    = do
+showWindow w        = do
     t <- runQuery title w
     return ("'" ++ t ++ "' - " ++ show w)
 
@@ -80,4 +82,17 @@ traceNew            = do
     xs <- ask >>= liftX . showWindow
     trace $ "New window: " ++ xs
     return (Endo id)
+
+-- Log current, visible and hidden workspaces from WindowSet.
+traceWindowSet :: X ()
+traceWindowSet      = withWindowSet $ \W.StackSet
+                                         { W.current = v
+                                         , W.visible = vs
+                                         , W.hidden = hs } -> do
+    trace ("Current: " ++ (W.tag . W.workspace $ v))
+    trace ("Visible: " ++ (showWS . map W.workspace $ vs))
+    trace ("Hidden: "  ++ showWS hs)
+  where
+    showWS :: [W.Workspace WorkspaceId (Layout Window) Window] -> String
+    showWS          = concat . intersperse ", " . map W.tag
 

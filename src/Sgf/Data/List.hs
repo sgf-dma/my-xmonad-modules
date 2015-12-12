@@ -11,10 +11,12 @@ module Sgf.Data.List
     , anyP
     , when'
     , unless'
+    , riseElems
     )
   where
 
 import Data.Monoid
+import Control.Applicative
 import Control.Monad.State
 
 insertUniq :: Eq a => a -> [a] -> [a]
@@ -67,4 +69,10 @@ unless' :: (Monoid b, Monad m) => Bool -> m b -> m b
 unless' p mx
  | not p            = mx
  | otherwise        = return mempty
+
+--
+-- Move all elements, matching predicate, to the head of list.
+riseElems :: (a -> Bool) -> [a] -> [a]
+--riseElems p xs      = filter p xs ++ filter (not . p) xs
+riseElems p         = liftA2 (++) (filter p) (filter (not . p))
 
