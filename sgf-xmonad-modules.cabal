@@ -36,6 +36,7 @@ library
                         Sgf.XMonad.Util.Run
                         Sgf.XMonad.Util.EntryHelper
                         Sgf.XMonad.Util.EZConfig
+                        Sgf.XMonad.Workspaces
                         Sgf.Control.Lens
     other-modules:      Sgf.Data.List
                         Sgf.Control.Exception
