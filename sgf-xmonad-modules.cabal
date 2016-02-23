@@ -37,6 +37,7 @@ library
                         Sgf.XMonad.Util.EntryHelper
                         Sgf.XMonad.Util.EZConfig
                         Sgf.XMonad.Workspaces
+                        Sgf.XMonad.Layout.ShadowedWorkspaces
                         Sgf.Control.Lens
     other-modules:      Sgf.Data.List
                         Sgf.Control.Exception
