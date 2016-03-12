@@ -8,7 +8,6 @@ module Sgf.XMonad.Restartable.Feh
     )
   where
 
-import Data.Monoid
 import Data.Typeable
 import Control.Monad.Trans
 import System.FilePath

@@ -9,9 +9,7 @@ module Sgf.XMonad.Docks.Trayer
     )
   where
 
-import Data.Monoid
 import Data.Typeable
-import Control.Applicative
 
 import Sgf.Control.Lens
 import Sgf.XMonad.Restartable

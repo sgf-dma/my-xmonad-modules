@@ -6,7 +6,6 @@ module Sgf.XMonad.Workspaces
   where
 
 import Data.Monoid
-import Control.Applicative
 import Control.Monad
 
 import XMonad

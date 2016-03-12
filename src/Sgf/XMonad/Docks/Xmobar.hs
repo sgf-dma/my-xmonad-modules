@@ -12,7 +12,6 @@ module Sgf.XMonad.Docks.Xmobar
     )
   where
 
-import Data.Monoid
 import Data.Function (on)
 import Control.Monad.State
 import Control.Exception

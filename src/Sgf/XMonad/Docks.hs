@@ -56,7 +56,7 @@ addDock d           = ProgConfig
       -- screen, but only for a short time, when new dock opens. See
       -- `raiseAllWindows` for details.
       { progManageHook  = liftX (getProcess d) >>=
-			    manageProcess (liftX raiseAllWindows >> manageP d)
+                            manageProcess (liftX raiseAllWindows >> manageP d)
       -- Launch dock process: PP does not saved in Extensible State and should
       -- be reinitialized before start by `doLaunchP` . To make this happen,
       -- functions used to start process should use `withProcessP` (not just
@@ -100,7 +100,7 @@ addDock d           = ProgConfig
 -- current workspace according to `runLayout`. For other workspaces `windows`
 -- will overwrite window layout, when processing workspace switch.
 raiseAllWindows :: X ()
-raiseAllWindows	    = withDisplay $ \d ->
+raiseAllWindows     = withDisplay $ \d ->
     withWindowSet (mapM_ (io . raiseWindow d) . W.allWindows)
 
 toggleDock :: DockClass a => a -> XConfig l -> [((ButtonMask, KeySym), X ())]

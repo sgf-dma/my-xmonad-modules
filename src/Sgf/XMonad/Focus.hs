@@ -14,7 +14,6 @@ module Sgf.XMonad.Focus
 
 import Data.Maybe
 import Data.Monoid
-import Control.Applicative
 
 import XMonad
 import qualified XMonad.StackSet as W

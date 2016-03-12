@@ -14,7 +14,6 @@ import Data.Maybe
 import Data.List
 import Data.Monoid
 import qualified Data.Map as M
-import Control.Applicative
 import Control.Monad
 
 import XMonad
