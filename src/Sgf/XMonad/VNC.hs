@@ -42,9 +42,9 @@ isVnc     = do
     uninstallSignalHandlers
     c <- readProcess "xdpyinfo" [] ""
     xs <- getEnvironment
-    return $ any id
-      [ elem "VNC-EXTENSION" (x11Extensions c)
-      , elem "XMONAD_VNC" (map fst xs)
+    return $ or
+      [ "VNC-EXTENSION" `elem` x11Extensions c
+      , "XMONAD_VNC" `elem` map fst xs
       ]
   where
     -- Extract loaded X11 extensions from `xdpyinfo` output.
@@ -53,7 +53,7 @@ isVnc     = do
         let l = map words
                     . dropWhile (not . isPrefixOf "number of extensions:")
                     . lines $ c
-            n = (\("number" : "of" : "extensions:" : ns : []) -> read ns)
+            n = (\["number", "of", "extensions:", ns] -> read ns)
                     . head $ l
         in  concat . take n . drop 1 $ l
 

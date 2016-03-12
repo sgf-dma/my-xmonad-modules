@@ -6,7 +6,6 @@ module Sgf.XMonad.Workspaces
   where
 
 import Data.Monoid
-import Control.Applicative
 import Control.Monad
 
 import XMonad
@@ -30,7 +29,7 @@ handleDefaultWorkspaces b p cf  = cf
 -- workspaces matching with predicate are already visible, they'll not be in
 -- `hidden` at all and can't be choosed.
 riseDefault :: (WorkspaceId -> Bool) -> X ()
-riseDefault p       = windows $ \ws@(W.StackSet {W.hidden = hs }) ->
+riseDefault p       = windows $ \ws@W.StackSet {W.hidden = hs } ->
       ws {W.hidden = riseElems (p . W.tag) hs}
 
 -- startupHook for selecting default workspaces. Note about original workspace
@@ -49,7 +48,7 @@ startupDefault p    = windows $ \ws ->
 -- ConfigureEvent handler (`handle` from XMonad/Main.hsc), will choose first
 -- ones from them for displaying on new Screen.
 handleDefault :: (WorkspaceId -> Bool) -> Event -> X All
-handleDefault p (ConfigureEvent {ev_window = w}) = do
+handleDefault p ConfigureEvent {ev_window = w} = do
     whenX (isRoot w) (riseDefault p)
     return (All True)
 handleDefault _   _ = return (All True)

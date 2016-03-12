@@ -8,7 +8,6 @@ module Sgf.XMonad.Restartable.Feh
     )
   where
 
-import Data.Monoid
 import Data.Typeable
 import Control.Monad.Trans
 import System.FilePath
@@ -26,10 +25,10 @@ import Sgf.XMonad.Restartable.Shell
 data Feh            = Feh {_fehProg :: Shell, _fehBg :: FilePath}
   deriving (Show, Read, Typeable, Eq)
 fehProg :: LensA Feh Shell
-fehProg f z@(Feh {_fehProg = x})
+fehProg f z@Feh {_fehProg = x}
                     = fmap (\x' -> z{_fehProg = x'}) (f x)
 fehBg :: LensA Feh FilePath
-fehBg f z@(Feh {_fehBg = x})
+fehBg f z@Feh {_fehBg = x}
                     = fmap (\x' -> z{_fehBg = x'}) (f x)
 defaultFeh :: Feh
 defaultFeh          = Feh {_fehProg = defaultShell, _fehBg = ".fehbg"}

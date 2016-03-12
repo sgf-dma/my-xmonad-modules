@@ -44,9 +44,7 @@ module Sgf.XMonad.Restartable
 
 import Data.List
 import Data.Maybe
-import Data.Monoid
 import Data.Typeable
-import Control.Applicative
 import Control.Monad
 import Control.Exception (try, IOException)
 import Control.Concurrent (threadDelay)
@@ -324,7 +322,7 @@ data Program a where
                , _progLaunchKey :: [(ButtonMask, KeySym)]
                , _progStartup :: Bool
                } -> Program a
-deriving instance Typeable1 Program
+deriving instance Typeable Program
 deriving instance Show a => Show (Program a)
 deriving instance (Arguments a, Read a) => Read (Program a)
 

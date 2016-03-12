@@ -14,7 +14,6 @@ import Data.Maybe
 import Data.List
 import Data.Monoid
 import qualified Data.Map as M
-import Control.Applicative
 import Control.Monad
 
 import XMonad
@@ -29,8 +28,7 @@ showWindow w        = do
 
 -- Log tiled and floating windows on specified workspace.
 traceWorkspace :: WorkspaceId -> X ()
-traceWorkspace i    = do
-    withWindowSet $ \ws -> do
+traceWorkspace i    = withWindowSet $ \ws -> do
       let xs  = W.index . W.view i $ ws
           fxs = [x | x <- xs, M.member x (W.floating ws)]
           txs = [x | x <- xs, x `notElem` fxs]
@@ -94,5 +92,5 @@ traceWindowSet      = withWindowSet $ \W.StackSet
     trace ("Hidden: "  ++ showWS hs)
   where
     showWS :: [W.Workspace WorkspaceId (Layout Window) Window] -> String
-    showWS          = concat . intersperse ", " . map W.tag
+    showWS          = intercalate ", " . map W.tag
 

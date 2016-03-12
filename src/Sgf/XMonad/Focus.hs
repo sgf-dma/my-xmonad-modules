@@ -14,7 +14,6 @@ module Sgf.XMonad.Focus
 
 import Data.Maybe
 import Data.Monoid
-import Control.Applicative
 
 import XMonad
 import qualified XMonad.StackSet as W
@@ -44,15 +43,15 @@ data FocusHook      = FocusHook
                         }
   deriving (Typeable)
 focusedWindow :: LensA FocusHook (Query Bool)
-focusedWindow f z@(FocusHook {_focusedWindow = x})
+focusedWindow f z@FocusHook {_focusedWindow = x}
                     = fmap (\x' -> z{_focusedWindow = x'}) (f x)
 newWindow :: LensA FocusHook (Query Bool)
-newWindow f z@(FocusHook {_newWindow = x})
+newWindow f z@FocusHook {_newWindow = x}
                     = fmap (\x' -> z{_newWindow = x'}) (f x)
 lockFocus :: LensA FocusHook (Maybe Bool)
 lockFocus           = lockFocus' . lastL
 lockFocus' :: LensA FocusHook (Last Bool)
-lockFocus' f z@(FocusHook {_lockFocus = x})
+lockFocus' f z@FocusHook {_lockFocus = x}
                     = fmap (\x' -> z{_lockFocus = x'}) (f x)
 defaultFocusHook :: FocusHook
 defaultFocusHook    = FocusHook

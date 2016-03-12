@@ -56,7 +56,7 @@ addDock d           = ProgConfig
       -- screen, but only for a short time, when new dock opens. See
       -- `raiseAllWindows` for details.
       { progManageHook  = liftX (getProcess d) >>=
-			    manageProcess (liftX raiseAllWindows >> manageP d)
+                            manageProcess (liftX raiseAllWindows >> manageP d)
       -- Launch dock process: PP does not saved in Extensible State and should
       -- be reinitialized before start by `doLaunchP` . To make this happen,
       -- functions used to start process should use `withProcessP` (not just
@@ -100,11 +100,11 @@ addDock d           = ProgConfig
 -- current workspace according to `runLayout`. For other workspaces `windows`
 -- will overwrite window layout, when processing workspace switch.
 raiseAllWindows :: X ()
-raiseAllWindows	    = withDisplay $ \d ->
+raiseAllWindows     = withDisplay $ \d ->
     withWindowSet (mapM_ (io . raiseWindow d) . W.allWindows)
 
 toggleDock :: DockClass a => a -> XConfig l -> [((ButtonMask, KeySym), X ())]
-toggleDock x (XConfig {modMask = m}) = maybeToList $ do
+toggleDock x XConfig {modMask = m} = maybeToList $ do
     (mk, k) <- dockToggleKey x
     return ((m .|. mk, k), toggleProcessStruts x)
 
@@ -179,42 +179,42 @@ dockLog y           = do
 
 -- Lenses to PP.
 ppCurrentL :: LensA PP (WorkspaceId -> String)
-ppCurrentL f z@(PP {ppCurrent = x})
+ppCurrentL f z@PP {ppCurrent = x}
                     = fmap (\x' -> z{ppCurrent = x'}) (f x)
 ppVisibleL :: LensA PP (WorkspaceId -> String)
-ppVisibleL f z@(PP {ppVisible = x})
+ppVisibleL f z@PP {ppVisible = x}
                     = fmap (\x' -> z{ppVisible = x'}) (f x)
 ppHiddenL :: LensA PP (WorkspaceId -> String)
-ppHiddenL f z@(PP {ppHidden = x})
+ppHiddenL f z@PP {ppHidden = x}
                     = fmap (\x' -> z{ppHidden = x'}) (f x)
 ppHiddenNoWindowsL :: LensA PP (WorkspaceId -> String)
-ppHiddenNoWindowsL f z@(PP {ppHiddenNoWindows = x})
+ppHiddenNoWindowsL f z@PP {ppHiddenNoWindows = x}
                     = fmap (\x' -> z{ppHiddenNoWindows = x'}) (f x)
 ppUrgentL :: LensA PP (WorkspaceId -> String)
-ppUrgentL f z@(PP {ppUrgent = x})
+ppUrgentL f z@PP {ppUrgent = x}
                     = fmap (\x' -> z{ppUrgent = x'}) (f x)
 ppSepL :: LensA PP String
-ppSepL f z@(PP {ppSep = x})
+ppSepL f z@PP {ppSep = x}
                     = fmap (\x' -> z{ppSep = x'}) (f x)
 ppWsSepL :: LensA PP String
-ppWsSepL f z@(PP {ppWsSep = x})
+ppWsSepL f z@PP {ppWsSep = x}
                     = fmap (\x' -> z{ppWsSep = x'}) (f x)
 ppTitleL :: LensA PP (String -> String)
-ppTitleL f z@(PP {ppTitle = x})
+ppTitleL f z@PP {ppTitle = x}
                     = fmap (\x' -> z{ppTitle = x'}) (f x)
 ppLayoutL :: LensA PP (String -> String)
-ppLayoutL f z@(PP {ppLayout = x})
+ppLayoutL f z@PP {ppLayout = x}
                     = fmap (\x' -> z{ppLayout = x'}) (f x)
 ppOrderL :: LensA PP ([String] -> [String])
-ppOrderL f z@(PP {ppOrder = x})
+ppOrderL f z@PP {ppOrder = x}
                     = fmap (\x' -> z{ppOrder = x'}) (f x)
 ppSortL :: LensA PP (X ([WindowSpace] -> [WindowSpace]))
-ppSortL f z@(PP {ppSort = x})
+ppSortL f z@PP {ppSort = x}
                     = fmap (\x' -> z{ppSort = x'}) (f x)
 ppExtrasL :: LensA PP [X (Maybe String)]
-ppExtrasL f z@(PP {ppExtras = x})
+ppExtrasL f z@PP {ppExtras = x}
                     = fmap (\x' -> z{ppExtras = x'}) (f x)
 ppOutputL :: LensA PP (String -> IO ())
-ppOutputL f z@(PP {ppOutput = x})
+ppOutputL f z@PP {ppOutput = x}
                     = fmap (\x' -> z{ppOutput = x'}) (f x)
 

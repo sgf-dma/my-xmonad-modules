@@ -12,6 +12,7 @@ import System.IO
 import System.Posix.IO
 import System.Posix.Process (executeFile)
 import System.Posix.Types (ProcessID)
+import Control.Monad
 import Control.Monad.Trans
 
 -- Variants of spawnPipe and spawnPID running process directly (not through
@@ -32,5 +33,5 @@ spawnPID' :: MonadIO m => FilePath -> [String] -> m ProcessID
 spawnPID' x xs      = xfork $ executeFile x True xs Nothing
 
 spawn' :: MonadIO m => FilePath -> [String] -> m ()
-spawn' x xs         = spawnPID' x xs >> return ()
+spawn' x xs         = void (spawnPID' x xs)
 
