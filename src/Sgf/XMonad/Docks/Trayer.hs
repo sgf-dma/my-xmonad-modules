@@ -20,7 +20,7 @@ import Sgf.XMonad.Docks
 newtype TrayerArgs  = TrayerArgs {_trayerArgs :: [String]}
   deriving (Show, Read, Typeable)
 trayerArgs :: LensA TrayerArgs [String]
-trayerArgs f z@(TrayerArgs {_trayerArgs = x})
+trayerArgs f z@TrayerArgs {_trayerArgs = x}
                     = fmap (\x' -> z{_trayerArgs = x'}) (f x)
 instance Eq TrayerArgs where
     _ == _          = True
@@ -35,7 +35,7 @@ instance Arguments TrayerArgs where
 newtype Trayer      = Trayer {_trayerProg :: Program TrayerArgs}
   deriving (Eq, Show, Read, Typeable)
 trayerProg :: LensA Trayer (Program TrayerArgs)
-trayerProg f z@(Trayer {_trayerProg = x})
+trayerProg f z@Trayer {_trayerProg = x}
                     = fmap (\x' -> z{_trayerProg = x'}) (f x)
 defaultTrayer :: Trayer
 defaultTrayer       = Trayer $ setA progBin "trayer" defaultProgram

@@ -47,7 +47,7 @@ defaultXmobarPP     = resetPipe L.xmobarPP
 normaliseConf :: MonadIO m => FilePath -> m FilePath
 normaliseConf cf
   | cf /= [] && takeFileName cf == cf
-                    = liftM (</> cf) (liftIO getHomeDirectory)
+                    = fmap (</> cf) (liftIO getHomeDirectory)
   | otherwise       = return cf
 
 -- XmobarArgs should provide options *with* container. I use records as
@@ -57,7 +57,7 @@ normaliseConf cf
 data XmobarArgs     = XmobarArgs {_xmobarConf :: FilePath}
   deriving (Show, Read, Typeable, Eq)
 xmobarConf :: LensA XmobarArgs FilePath
-xmobarConf f z@(XmobarArgs {_xmobarConf = x})
+xmobarConf f z@XmobarArgs {_xmobarConf = x}
                     = fmap (\x' -> z{_xmobarConf = x'}) (f x)
 instance Arguments XmobarArgs where
     defaultArgs     = XmobarArgs {_xmobarConf = ".xmobarrc"}
@@ -74,7 +74,7 @@ data Xmobar         = Xmobar
                         }
   deriving (Typeable)
 xmobarProg :: LensA Xmobar (Program XmobarArgs)
-xmobarProg f z@(Xmobar {_xmobarProg = x})
+xmobarProg f z@Xmobar {_xmobarProg = x}
                     = fmap (\x' -> z{_xmobarProg = x'}) (f x)
 -- Lens to PP, which overwrites ppOutput: generally, ppOutput is set in runP
 -- and should write to pipe to xmobar, so i should not allow modifying it for
@@ -87,7 +87,7 @@ xmobarProg f z@(Xmobar {_xmobarProg = x})
 --                     Nothing at xmonad restart (recompile + reload)..
 -- Just    + Just    = Just with pp preserved from old value
 xmobarPP :: LensA Xmobar (Maybe L.PP)
-xmobarPP f z@(Xmobar {_xmobarPP = x})
+xmobarPP f z@Xmobar {_xmobarPP = x}
                     = fmap (\y -> z
                             { _xmobarPP = modifyA maybeL
                                                   (updatePPOutput x) y
@@ -99,10 +99,10 @@ xmobarPP f z@(Xmobar {_xmobarPP = x})
     updatePPOutput (Just t) = setA ppOutputL (viewA ppOutputL t)
 -- Lens to PP, which does not modify PP. Do not export, for internal use only!
 xmobarPP' :: LensA Xmobar (Maybe L.PP)
-xmobarPP' f z@(Xmobar {_xmobarPP = x})
+xmobarPP' f z@Xmobar {_xmobarPP = x}
                     = fmap (\x' -> z{_xmobarPP = x'}) (f x)
 xmobarToggle :: LensA Xmobar (Maybe (ButtonMask, KeySym))
-xmobarToggle f z@(Xmobar {_xmobarToggle = x})
+xmobarToggle f z@Xmobar {_xmobarToggle = x}
                     = fmap (\x' -> z{_xmobarToggle = x'}) (f x)
 -- I should not initialize PP in defaultXmobar, otherwise runP will open pipe
 -- to xmobar and xmonad blocks, when pipe fills up. Thus, if user uses
