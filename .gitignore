@@ -6,7 +6,6 @@ t.*
 # Build system's directories.
 dist/
 .stack-work/
-extra-deps/
 
 # Any other..
 nohup.out
