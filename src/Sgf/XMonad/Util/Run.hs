@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 
 module Sgf.XMonad.Util.Run
     ( spawnPipe'
@@ -23,6 +24,7 @@ import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import Control.Monad.Cont
+import Control.Monad.State
 
 import Sgf.Data.List
 
@@ -82,7 +84,11 @@ executeFileWithSerch cmd mf args env = do
       liftIO (hPrint stderr "B")
       f <- maybeT mf
       liftIO (hPrint stderr "C")
-      MaybeT (getSearchPath >>= findM isExecutable . map (</> cmd) . f)
+      --MaybeT (getSearchPath >>= findM isExecutable . map (</> cmd) . f)
+      (m, e) <- runStateT
+        (liftIO getSearchPath >>= findM isExecutableM . map (</> cmd) . f)
+        (mkIOError doesNotExistErrorType "huh" Nothing Nothing)
+      maybe (throw e) return m
     liftIO (hPrint stderr "D")
     -- executeFile searches for cmd in current directory.. Should i specify
     -- it? Or hardcode adding '.' to search path?
@@ -90,6 +96,24 @@ executeFileWithSerch cmd mf args env = do
   where
     maybeT :: Monad m => Maybe a -> MaybeT m a
     maybeT          = MaybeT . return
+
+isExecutableWithSearch :: MonadIO m => FilePath -> ([FilePath] -> [FilePath]) -> m (Either IOError FilePath)
+isExecutableWithSearch cmd f = do
+    (m, e) <- runStateT
+      (liftIO getSearchPath >>= findM isExecutableM . map (</> cmd) . f)
+      (mkIOError doesNotExistErrorType "huh" Nothing Nothing)
+    return (maybe (throw e) Right m)
+
+isExecutableM :: (MonadIO m, MonadState IOError m) => FilePath -> m Bool
+isExecutableM f     = do
+                        -- Use try .
+                        e <- liftIO $ catch
+                          (getPermissions f >>= return . Right . executable)
+                          (\e -> hPrint stderr e >> return (Left e))
+                        case e of
+                          Right b -> return b
+                          Left  e -> put e >> return False
+
 
 isExecutable :: FilePath -> IO Bool
 isExecutable f  = catch (getPermissions f >>= return . executable)
