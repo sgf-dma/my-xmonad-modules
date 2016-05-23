@@ -153,6 +153,8 @@ instance RestartClass Xmobar where
     runP x          = userCodeDef x $ case viewA xmobarPP' x of
           Just _    -> do
             f <- modifyPATH x
+            s <- liftIO getSearchPath
+            trace ("Grr " ++ show (maybe ["Huh"] ($ s) f))
             (h, p) <- progCmd (viewA xmobarProg x) >>=
                       uncurry (spawnPipeWithPATH' f)
             return
