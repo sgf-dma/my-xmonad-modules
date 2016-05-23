@@ -159,14 +159,14 @@ instance RestartClass Xmobar where
               . setA pidL (Just p)
               . setA (xmobarPP' . maybeL . ppOutputL) (hPutStrLn h)
               $ x
-          Nothing   -> modifyAA xmobarProg runP x
+          Nothing   -> programRunP xmobarProg x
     -- I need to reset pipe (to ignore output), because though process got
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.
-    killP           = modifyAA xmobarProg killP
+    killP           = programKillP xmobarProg
                         . modifyA (xmobarPP' . maybeL) resetPipe
     doLaunchP       = restartP
-    launchKey       = launchKey . viewA xmobarProg
+    launchKey       = programLaunchKey xmobarProg
     modifyPATH _    = do
         h <- liftIO getHomeDirectory
         -- FIXME: Read symbolic link and fallback to id, if it does not exist.
