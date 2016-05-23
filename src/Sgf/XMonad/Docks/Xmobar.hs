@@ -25,7 +25,7 @@ import qualified XMonad.Hooks.DynamicLog as L
 import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.Control.Exception
-import Sgf.XMonad.Util.Run (spawnPipe')
+import Sgf.XMonad.Util.Run (spawnPipeWithPATH')
 import Sgf.XMonad.Restartable
 import Sgf.XMonad.Docks
 
@@ -152,7 +152,9 @@ instance ProcessClass Xmobar where
 instance RestartClass Xmobar where
     runP x          = userCodeDef x $ case viewA xmobarPP' x of
           Just _    -> do
-            (h, p) <- progCmd (viewA xmobarProg x) >>= uncurry spawnPipe'
+            f <- modifyPATH x
+            (h, p) <- progCmd (viewA xmobarProg x) >>=
+                      uncurry (spawnPipeWithPATH' f)
             return
               . setA pidL (Just p)
               . setA (xmobarPP' . maybeL . ppOutputL) (hPutStrLn h)
@@ -165,6 +167,9 @@ instance RestartClass Xmobar where
                         . modifyA (xmobarPP' . maybeL) resetPipe
     doLaunchP       = restartP
     launchKey       = launchKey . viewA xmobarProg
+    modifyPATH _    = do
+        h <- liftIO getHomeDirectory
+        return (Just (++ [h ++ ".local/bin"]))
 instance DockClass Xmobar where
     dockToggleKey   = viewA xmobarToggle
     ppL             = xmobarPP
