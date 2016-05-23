@@ -146,6 +146,8 @@ class (Monoid a, ProcessClass a) => RestartClass a where
     -- Key for restarting program.
     launchKey :: a -> [(ButtonMask, KeySym)]
     launchKey       = const []
+    modifyPATH :: a -> X (Maybe ([FilePath] -> [FilePath]))
+    modifyPATH      = const $ return (Just id)
 
 -- Version of withProcess, which `mappend`-s process we're searching by and
 -- process we've found. Thus, some fields of found process may be updated.
@@ -317,6 +319,7 @@ data Program a where
                { _progPid  :: Maybe ProcessID
                , _progBin  :: FilePath
                , _progArgs :: a
+               , _progPATH :: Maybe [FilePath]
                , _progWait :: Int
                , _progWorkspace :: String   -- Simplified manageP .
                , _progLaunchKey :: [(ButtonMask, KeySym)]
@@ -335,6 +338,9 @@ progBin f z@(Program {_progBin = x})
 progArgs :: LensA (Program a) a
 progArgs f z@(Program {_progArgs = x})
                     = fmap (\x' -> z{_progArgs = x'}) (f x)
+progPATH :: LensA (Program a) (Maybe [FilePath])
+progPATH f z@(Program {_progPATH = x})
+                    = fmap (\x' -> z{_progPATH = x'}) (f x)
 -- Wait specified number of microseconds after spawning a program. Only
 -- positive integers (or zero) allowed in progWait .
 progWait :: LensA (Program a) Int
@@ -359,6 +365,7 @@ defaultProgram      = Program
                         { _progPid  = Nothing
                         , _progBin  = ""
                         , _progArgs = defaultArgs
+                        , _progPATH = Nothing
                         , _progWait = 0
                         , _progWorkspace = ""
                         , _progLaunchKey = []
@@ -387,11 +394,18 @@ instance (Arguments a, Typeable a, Show a, Read a, Eq a)
          => RestartClass (Program a) where
     runP x          = do
                         let w = viewA progWait x
-                        p <- progCmd x >>= uncurry spawnPID'
+                        f <- modifyPATH x
+                        p <- progCmd x >>= uncurry (spawnPIDWithPATH' f)
                         when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)
     launchAtStartup = viewA progStartup
     launchKey       = viewA progLaunchKey
     manageP x       = let w = viewA progWorkspace x
                       in  if null w then idHook else doShift w
+    -- I interpret Nothing in `progPATH` as "use default" (here it means "use
+    -- PATH from environment"). Thus, it's not possible to disable PATH search
+    -- using `progPATH`: i should either define `modifyPATH` to `const
+    -- Nothing` (note, there `Nothing` has different meaning, which is defined
+    -- by `searchPATH` function) or use slashes in `progBin`.
+    modifyPATH x    = return . Just $ maybe id const (viewA progPATH x)
 
