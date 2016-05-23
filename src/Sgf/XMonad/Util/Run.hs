@@ -54,10 +54,9 @@ executeFileWithPATH cmd mf args env = do
     executeFile c True args env
 
 -- Versions of spawnX', which allow to modify PATH.
-spawnPipeWithPATH' :: MonadIO m => FilePath
-                      -> Maybe ([FilePath] -> [FilePath]) -> [String]
-                      -> m (Handle, ProcessID)
-spawnPipeWithPATH' x mf xs  = io $ do
+spawnPipeWithPATH' :: MonadIO m => Maybe ([FilePath] -> [FilePath])
+                      -> FilePath -> [String] -> m (Handle, ProcessID)
+spawnPipeWithPATH' mf x xs = io $ do
                         (rd, wr) <- createPipe
                         setFdOption wr CloseOnExec True
                         h <- fdToHandle wr
@@ -68,12 +67,13 @@ spawnPipeWithPATH' x mf xs  = io $ do
                         closeFd rd
                         return (h, p)
 
-spawnPIDWithPATH' :: MonadIO m => FilePath -> Maybe ([FilePath] -> [FilePath])
-                     -> [String] -> m ProcessID
-spawnPIDWithPATH' x mf xs   = xfork $ executeFileWithPATH x mf xs Nothing
+spawnPIDWithPATH' :: MonadIO m => Maybe ([FilePath] -> [FilePath])
+                     -> FilePath -> [String] -> m ProcessID
+spawnPIDWithPATH' mf x xs = xfork $ executeFileWithPATH x mf xs Nothing
 
-spawnWithPATH' :: MonadIO m => FilePath -> [String] -> m ()
-spawnWithPATH' x xs = void (spawnPID' x xs)
+spawnWithPATH' :: MonadIO m => Maybe ([FilePath] -> [FilePath])
+                  -> FilePath -> [String] -> m ()
+spawnWithPATH' mf x xs = void (spawnPIDWithPATH' mf x xs)
 
 {-
 -- Guess stack local bin path. Dereference link completely or this does not
