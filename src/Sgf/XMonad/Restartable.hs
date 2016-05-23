@@ -146,8 +146,8 @@ class (Monoid a, ProcessClass a) => RestartClass a where
     -- Key for restarting program.
     launchKey :: a -> [(ButtonMask, KeySym)]
     launchKey       = const []
-    modifyPATH :: a -> Maybe ([FilePath] -> [FilePath])
-    modifyPATH      = const (Just id)
+    modifyPATH :: a -> X (Maybe ([FilePath] -> [FilePath]))
+    modifyPATH      = const $ return (Just id)
 
 -- Version of withProcess, which `mappend`-s process we're searching by and
 -- process we've found. Thus, some fields of found process may be updated.
@@ -394,8 +394,8 @@ instance (Arguments a, Typeable a, Show a, Read a, Eq a)
          => RestartClass (Program a) where
     runP x          = do
                         let w = viewA progWait x
-                        p <- progCmd x >>=
-                             uncurry (spawnPIDWithPATH' (modifyPATH x))
+                        f <- modifyPATH x
+                        p <- progCmd x >>= uncurry (spawnPIDWithPATH' f)
                         when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)
     launchAtStartup = viewA progStartup
@@ -407,5 +407,5 @@ instance (Arguments a, Typeable a, Show a, Read a, Eq a)
     -- using `progPATH`: i should either define `modifyPATH` to `const
     -- Nothing` (note, there `Nothing` has different meaning, which is defined
     -- by `searchPATH` function) or use slashes in `progBin`.
-    modifyPATH x    = maybe (Just id) (Just . const) (viewA progPATH x)
+    modifyPATH x    = return . Just $ maybe id const (viewA progPATH x)
 
