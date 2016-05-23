@@ -169,7 +169,8 @@ instance RestartClass Xmobar where
     launchKey       = launchKey . viewA xmobarProg
     modifyPATH _    = do
         h <- liftIO getHomeDirectory
-        return (Just (++ [h ++ ".local/bin"]))
+        -- Read symbolic link and fallback to id, if it does not exist.
+        return (Just ((h </> ".local/bin") :))
 instance DockClass Xmobar where
     dockToggleKey   = viewA xmobarToggle
     ppL             = xmobarPP
