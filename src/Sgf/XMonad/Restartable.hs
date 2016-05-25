@@ -2,6 +2,11 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Sgf.XMonad.Restartable
     ( modifyXS
@@ -39,6 +44,7 @@ module Sgf.XMonad.Restartable
     --, progPid
     , defaultProgram
     , progCmd
+    , progRunP
     )
   where
 
@@ -378,6 +384,13 @@ progCmd x           = do
                         args <- serialize (viewA progArgs x)
                         return (viewA progBin x, args)
 
+progRunP :: (RestartClass a, Arguments b) => LensA a (Program b) -> a -> X a
+progRunP pL x       = do
+                        let w = viewA (pL . progWait) x
+                        f <- modifyPATH x
+                        p <- progCmd (viewA pL x) >>= uncurry (spawnPIDWithPATH' f)
+                        when (w > 0) $ io (threadDelay w)
+                        return (setA pidL (Just p) x)
 
 -- I assume only one instance of each program by default. I.e. different
 -- programs should have different types.
@@ -390,14 +403,17 @@ instance Arguments a => Monoid (Program a) where
 instance (Arguments a, Typeable a, Show a, Read a, Eq a)
          => ProcessClass (Program a) where
     pidL            = progPid
+
 instance (Arguments a, Typeable a, Show a, Read a, Eq a)
          => RestartClass (Program a) where
+    runP x          = progRunP id x
+    {-
     runP x          = do
                         let w = viewA progWait x
                         f <- modifyPATH x
                         p <- progCmd x >>= uncurry (spawnPIDWithPATH' f)
                         when (w > 0) $ io (threadDelay w)
-                        return (setA pidL (Just p) x)
+                        return (setA pidL (Just p) x)-}
     launchAtStartup = viewA progStartup
     launchKey       = viewA progLaunchKey
     manageP x       = let w = viewA progWorkspace x
@@ -408,4 +424,19 @@ instance (Arguments a, Typeable a, Show a, Read a, Eq a)
     -- Nothing` (note, there `Nothing` has different meaning, which is defined
     -- by `searchPATH` function) or use slashes in `progBin`.
     modifyPATH x    = return . Just $ maybe id const (viewA progPATH x)
+
+{-
+class (Arguments b, Monoid a) => ProgramClass a b | a -> b where
+    progL :: LensA a (Program b)
+
+-- That will not work, because `modifyPATH x` should be defined here, but it
+-- can't be.
+instance (ProcessClass a, ProgramClass a b) => RestartClass a where
+    runP x       = do
+                            let w = viewA (progL . progWait) x
+                            f <- modifyPATH x
+                            p <- progCmd (viewA progL x) >>= uncurry (spawnPIDWithPATH' f)
+                            when (w > 0) $ io (threadDelay w)
+                            return (setA pidL (Just p) x)
+-}
 

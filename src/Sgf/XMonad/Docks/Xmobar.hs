@@ -161,7 +161,8 @@ instance RestartClass Xmobar where
               . setA pidL (Just p)
               . setA (xmobarPP' . maybeL . ppOutputL) (hPutStrLn h)
               $ x
-          Nothing   -> modifyAA xmobarProg runP x
+          --Nothing   -> modifyAA xmobarProg runP x
+          Nothing   -> progRunP xmobarProg x
     -- I need to reset pipe (to ignore output), because though process got
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.
