@@ -34,7 +34,9 @@ module Sgf.XMonad.Restartable
     , handleProgs
     , Arguments (..)
     , NoArgs (..)
+    -- Default program.
     , Program
+    -- Program lenses.
     , progBin
     , progArgs
     , progWait
@@ -44,7 +46,14 @@ module Sgf.XMonad.Restartable
     --, progPid
     , defaultProgram
     , progCmd
-    , progRunP
+    -- Program's RestartClass methods implementation.
+    , programRunP
+    , programKillP
+    , programManageP
+    , programDoLaunch
+    , programLaunchAtStartup
+    , programLaunchKey
+    , programModifyPATH
     )
   where
 
@@ -384,13 +393,50 @@ progCmd x           = do
                         args <- serialize (viewA progArgs x)
                         return (viewA progBin x, args)
 
-progRunP :: (RestartClass a, Arguments b) => LensA a (Program b) -> a -> X a
-progRunP pL x       = do
-                        let w = viewA (pL . progWait) x
+-- I make Program's RestartClass methods available as separate functions,
+-- because when definining new RestartClass instances for type based on
+-- Program (particular, for which i can define `Lens a (Program b)`), i may
+-- want to use some methods as they were defined for Program. Though, i can
+-- just call corresponding method on Program value created from type a value,
+-- this may not work as expected: if Program's method calls other RestartClass
+-- methods (e.g. `runP` below calls `modifyPATH`), then, when invoked on
+-- Program value, that other method would be choosed from Program's instance,
+-- but not from type a instance as i may expect (e.g. `modifyPATH` of
+-- Program's instance would be used, but i may expect `modifyPATH` from type a
+-- instance instead). Implementing RestartClass methods as separate functions,
+-- taking lens to Program as well as type a value, allows to use default
+-- method implementation with other RestartClass methods used from type a
+-- instance.
+--class LensClass a (Program b), RestartClass a, Arguments b => RC a (Program b) where
+--class LensClass a b, RestartClass a => RC a b where
+
+programRunP :: (RestartClass a, Arguments b) => LensA a (Program b)
+               -> a -> X a
+programRunP progL x = do
+                        let w = viewA (progL . progWait) x
                         f <- modifyPATH x
-                        p <- progCmd (viewA pL x) >>= uncurry (spawnPIDWithPATH' f)
+                        p <- progCmd (viewA progL x) >>=
+                             uncurry (spawnPIDWithPATH' f)
                         when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)
+programKillP :: (Arguments b, Typeable b, Show b, Read b, Eq b)
+                => LensA a (Program b) -> a -> X a
+programKillP progL      = modifyAA progL killP
+programManageP :: Arguments b => LensA a (Program b) -> a -> ManageHook
+programManageP progL x  = let w = viewA (progL . progWorkspace) x
+                          in  if null w then idHook else doShift w
+programDoLaunch :: (Arguments b, Typeable b, Show b, Read b, Eq b)
+                   => LensA a (Program b) -> a -> X ()
+programDoLaunch progL           = doLaunchP . viewA progL
+programLaunchAtStartup :: Arguments b => Lens a (Program b) -> a -> Bool
+programLaunchAtStartup progL    = viewA (progL . progStartup)
+programLaunchKey :: Arguments b => LensA a (Program b) -> a
+                    -> [(ButtonMask, KeySym)]
+programLaunchKey progL          = viewA (progL . progLaunchKey)
+programModifyPATH :: Arguments b => LensA a (Program b) -> a
+                     -> X (Maybe ([FilePath] -> [FilePath]))
+programModifyPATH progL     = return . Just .  maybe id const
+                                . viewA (progL . progPATH)
 
 -- I assume only one instance of each program by default. I.e. different
 -- programs should have different types.
@@ -406,7 +452,7 @@ instance (Arguments a, Typeable a, Show a, Read a, Eq a)
 
 instance (Arguments a, Typeable a, Show a, Read a, Eq a)
          => RestartClass (Program a) where
-    runP x          = progRunP id x
+    runP x          = programRunP id x
     {-
     runP x          = do
                         let w = viewA progWait x
@@ -414,10 +460,9 @@ instance (Arguments a, Typeable a, Show a, Read a, Eq a)
                         p <- progCmd x >>= uncurry (spawnPIDWithPATH' f)
                         when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)-}
-    launchAtStartup = viewA progStartup
-    launchKey       = viewA progLaunchKey
-    manageP x       = let w = viewA progWorkspace x
-                      in  if null w then idHook else doShift w
+    launchAtStartup = programLaunchAtStartup id
+    launchKey       = programLaunchKey id
+    manageP         = programManageP id
     -- I interpret Nothing in `progPATH` as "use default" (here it means "use
     -- PATH from environment"). Thus, it's not possible to disable PATH search
     -- using `progPATH`: i should either define `modifyPATH` to `const
