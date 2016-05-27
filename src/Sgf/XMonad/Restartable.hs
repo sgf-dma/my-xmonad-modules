@@ -313,7 +313,7 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
                 ]
     addShowKey Nothing _ = []
 
-class Arguments a where
+class (Typeable a, Show a, Read a, Eq a) => Arguments a where
     serialize   :: MonadIO m => a -> m [String]
     defaultArgs :: a
 data NoArgs         = NoArgs
@@ -446,12 +446,10 @@ instance Eq a => Eq (Program a) where
 instance Arguments a => Monoid (Program a) where
     x `mappend` y   = setA progPid (viewA progPid x) y
     mempty          = defaultProgram
-instance (Arguments a, Typeable a, Show a, Read a, Eq a)
-         => ProcessClass (Program a) where
+instance Arguments a => ProcessClass (Program a) where
     pidL            = progPid
 
-instance (Arguments a, Typeable a, Show a, Read a, Eq a)
-         => RestartClass (Program a) where
+instance Arguments a => RestartClass (Program a) where
     runP x          = programRunP id x
     {-
     runP x          = do
