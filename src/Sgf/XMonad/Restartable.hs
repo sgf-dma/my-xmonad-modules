@@ -7,6 +7,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Sgf.XMonad.Restartable
     ( modifyXS
@@ -47,13 +49,8 @@ module Sgf.XMonad.Restartable
     , defaultProgram
     , progCmd
     -- Program's RestartClass methods implementation.
-    , programRunP
-    , programKillP
-    , programManageP
-    , programDoLaunch
-    , programLaunchAtStartup
-    , programLaunchKey
-    , programModifyPATH
+    , DefaultRestartClass (..)
+    , LensClass (..)
     )
   where
 
@@ -407,36 +404,61 @@ progCmd x           = do
 -- taking lens to Program as well as type a value, allows to use default
 -- method implementation with other RestartClass methods used from type a
 -- instance.
---class LensClass a (Program b), RestartClass a, Arguments b => RC a (Program b) where
---class LensClass a b, RestartClass a => RC a b where
+class LensClass a b where
+    type LensF a :: *
+    lens :: LensA a b
 
-programRunP :: (RestartClass a, Arguments b) => LensA a (Program b)
-               -> a -> X a
-programRunP progL x = do
+class (RestartClass a, LensF a ~ b) => DefaultRestartClass a b where
+    defaultRunP :: a -> X a
+    defaultKillP :: a -> X a
+    defaultManageP :: a -> ManageHook
+    defaultDoLaunch :: a -> X ()
+    defaultLaunchAtStartup :: a -> Bool
+    defaultLaunchKey :: a -> [(ButtonMask, KeySym)]
+    defaultModifyPATH :: a -> X (Maybe ([FilePath] -> [FilePath]))
+
+instance (Arguments b, RestartClass a, LensF a ~ Program b, LensClass a (Program b)) => DefaultRestartClass a (Program b) where
+    defaultRunP x = do
                         let w = viewA (progL . progWait) x
                         f <- modifyPATH x
                         p <- progCmd (viewA progL x) >>=
                              uncurry (spawnPIDWithPATH' f)
                         when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)
-programKillP :: (Arguments b, Typeable b, Show b, Read b, Eq b)
-                => LensA a (Program b) -> a -> X a
-programKillP progL      = modifyAA progL killP
-programManageP :: Arguments b => LensA a (Program b) -> a -> ManageHook
-programManageP progL x  = let w = viewA (progL . progWorkspace) x
-                          in  if null w then idHook else doShift w
-programDoLaunch :: (Arguments b, Typeable b, Show b, Read b, Eq b)
-                   => LensA a (Program b) -> a -> X ()
-programDoLaunch progL           = doLaunchP . viewA progL
-programLaunchAtStartup :: Arguments b => Lens a (Program b) -> a -> Bool
-programLaunchAtStartup progL    = viewA (progL . progStartup)
-programLaunchKey :: Arguments b => LensA a (Program b) -> a
-                    -> [(ButtonMask, KeySym)]
-programLaunchKey progL          = viewA (progL . progLaunchKey)
-programModifyPATH :: Arguments b => LensA a (Program b) -> a
-                     -> X (Maybe ([FilePath] -> [FilePath]))
-programModifyPATH progL     = return . Just .  maybe id const
+      where
+        progL :: LensA a (Program b)
+        progL = lens
+    defaultKillP      = modifyAA progL killP
+      where
+        progL :: LensA a (Program b)
+        progL = lens
+    defaultManageP x  = let w = viewA (progL . progWorkspace) x
+                        in  if null w then idHook else doShift w
+      where
+        progL :: LensA a (Program b)
+        progL = lens
+    defaultDoLaunch = doLaunchP . viewA progL
+      where
+        progL :: LensA a (Program b)
+        progL = lens
+    defaultLaunchAtStartup = viewA (progL . progStartup)
+      where
+        progL :: LensA a (Program b)
+        progL = lens
+    defaultLaunchKey = viewA (progL . progLaunchKey)
+      where
+        progL :: LensA a (Program b)
+        progL = lens
+    -- I interpret Nothing in `progPATH` as "use default" (here it means "use
+    -- PATH from environment"). Thus, it's not possible to disable PATH search
+    -- using `progPATH`: i should either define `modifyPATH` to `const
+    -- Nothing` (note, there `Nothing` has different meaning, which is defined
+    -- by `searchPATH` function) or use slashes in `progBin`.
+    defaultModifyPATH = return . Just .  maybe id const
                                 . viewA (progL . progPATH)
+      where
+        progL :: LensA a (Program b)
+        progL = lens
 
 -- I assume only one instance of each program by default. I.e. different
 -- programs should have different types.
@@ -449,8 +471,14 @@ instance Arguments a => Monoid (Program a) where
 instance Arguments a => ProcessClass (Program a) where
     pidL            = progPid
 
+instance LensClass (Program a) (Program a) where
+    type LensF (Program a)  = Program a
+    lens    = id
+instance LensClass (Program a) (Maybe ProcessID) where
+    type LensF (Program a)  = Maybe ProcessID
+    lens    = progPid
 instance Arguments a => RestartClass (Program a) where
-    runP x          = programRunP id x
+    runP            = defaultRunP
     {-
     runP x          = do
                         let w = viewA progWait x
@@ -458,28 +486,8 @@ instance Arguments a => RestartClass (Program a) where
                         p <- progCmd x >>= uncurry (spawnPIDWithPATH' f)
                         when (w > 0) $ io (threadDelay w)
                         return (setA pidL (Just p) x)-}
-    launchAtStartup = programLaunchAtStartup id
-    launchKey       = programLaunchKey id
-    manageP         = programManageP id
-    -- I interpret Nothing in `progPATH` as "use default" (here it means "use
-    -- PATH from environment"). Thus, it's not possible to disable PATH search
-    -- using `progPATH`: i should either define `modifyPATH` to `const
-    -- Nothing` (note, there `Nothing` has different meaning, which is defined
-    -- by `searchPATH` function) or use slashes in `progBin`.
-    modifyPATH x    = return . Just $ maybe id const (viewA progPATH x)
-
-{-
-class (Arguments b, Monoid a) => ProgramClass a b | a -> b where
-    progL :: LensA a (Program b)
-
--- That will not work, because `modifyPATH x` should be defined here, but it
--- can't be.
-instance (ProcessClass a, ProgramClass a b) => RestartClass a where
-    runP x       = do
-                            let w = viewA (progL . progWait) x
-                            f <- modifyPATH x
-                            p <- progCmd (viewA progL x) >>= uncurry (spawnPIDWithPATH' f)
-                            when (w > 0) $ io (threadDelay w)
-                            return (setA pidL (Just p) x)
--}
+    launchAtStartup = defaultLaunchAtStartup
+    launchKey       = defaultLaunchKey
+    manageP         = defaultManageP
+    modifyPATH      = defaultModifyPATH
 

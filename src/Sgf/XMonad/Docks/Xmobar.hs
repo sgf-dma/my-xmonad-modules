@@ -1,4 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Sgf.XMonad.Docks.Xmobar
     ( XmobarArgs
@@ -149,6 +153,9 @@ instance Monoid Xmobar where
     mempty          = defaultXmobar
 instance ProcessClass Xmobar where
     pidL            = xmobarProg . pidL
+instance LensClass Xmobar where
+    type LensF Xmobar = Program XmobarArgs
+    lens = xmobarProg
 instance RestartClass Xmobar where
     runP x          = userCodeDef x $ case viewA xmobarPP' x of
           Just _    -> do
@@ -162,14 +169,15 @@ instance RestartClass Xmobar where
               . setA (xmobarPP' . maybeL . ppOutputL) (hPutStrLn h)
               $ x
           --Nothing   -> modifyAA xmobarProg runP x
-          Nothing   -> programRunP xmobarProg x
+          --Nothing   -> defaultRunP (viewA xmobarProg x) x
+          Nothing   -> defaultRunP x
     -- I need to reset pipe (to ignore output), because though process got
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.
-    killP           = programKillP xmobarProg
+    killP           = defaultKillP
                         . modifyA (xmobarPP' . maybeL) resetPipe
     doLaunchP       = restartP
-    launchKey       = programLaunchKey xmobarProg
+    launchKey       = defaultLaunchKey
     modifyPATH _    = do
         h <- liftIO getHomeDirectory
         -- Read symbolic link and fallback to id, if it does not exist.
