@@ -418,7 +418,7 @@ programManageP progL x  = let w = viewA (progL . progWorkspace) x
 programDoLaunch :: (Arguments b, Typeable b, Show b, Read b, Eq b)
                    => LensA a (Program b) -> a -> X ()
 programDoLaunch progL   = doLaunchP . viewA progL
-programLaunchAtStartup :: Arguments b => Lens a (Program b) -> a -> Bool
+programLaunchAtStartup :: Arguments b => LensA a (Program b) -> a -> Bool
 programLaunchAtStartup progL    = viewA (progL . progStartup)
 programLaunchKey :: Arguments b => LensA a (Program b) -> a
                     -> [(ButtonMask, KeySym)]
