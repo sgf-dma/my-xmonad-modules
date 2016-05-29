@@ -167,6 +167,7 @@ instance RestartClass Xmobar where
                         . modifyA (xmobarPP' . maybeL) resetPipe
     doLaunchP       = restartP
     launchKey       = programLaunchKey xmobarProg
+    launchAtStartup = programLaunchAtStartup xmobarProg
     modifyPATH _    = do
         h <- liftIO getHomeDirectory
         -- FIXME: Read symbolic link and fallback to id, if it does not exist.
