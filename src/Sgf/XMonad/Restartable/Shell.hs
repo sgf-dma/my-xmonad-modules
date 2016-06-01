@@ -20,7 +20,7 @@ import Sgf.XMonad.Restartable
 data ShellArgs      = ShellArgs {_shellCmd :: String}
   deriving (Show, Read, Typeable)
 shellCmd :: LensA ShellArgs String
-shellCmd f z@(ShellArgs {_shellCmd = x})
+shellCmd f z@ShellArgs {_shellCmd = x}
                     = fmap (\x' -> z{_shellCmd = x'}) (f x)
 instance Eq ShellArgs where
     _ == _          = True

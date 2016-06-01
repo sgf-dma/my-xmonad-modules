@@ -2,10 +2,15 @@
 
 module Sgf.XMonad.Util.EntryHelper
     ( withHelper
-    , cabalCompile
+    , buildCmd
+    , cabalBuild
+    , cabalInstall
+    , stackBuild
+    , stackInstall
     )
   where
 
+import Control.Monad
 import Control.Exception
 import System.FilePath  ((</>))
 import System.Directory (getHomeDirectory, copyFile)
@@ -24,18 +29,22 @@ withHelper :: IO () -> IO ()
 withHelper e        = EH.withCustomHelper EH.defaultConfig
                         { EH.run = e
                         , EH.compile = EH.withLock (throw lockAlreadyExists)
-                                         . cabalCompile
-                        , EH.postCompile = cabalInstall
+                                         . stackBuild
+                        , EH.postCompile = stackInstall
                         }
 
-cabalCompile :: Bool -> IO ExitCode
-cabalCompile force  = do
-    let buildCmd = "cabal configure; cabal build"
-        cmd      = (if force then "cabal clean; " else "") ++ buildCmd
+buildCmd :: String -> IO ExitCode
+buildCmd cmd        = do
     uninstallSignalHandlers
     r <- EH.compileUsingShell cmd
     installSignalHandlers
     return r
+
+cabalBuild :: Bool -> IO ExitCode
+cabalBuild force    = do
+    let clean   = if force then "cabal clean; " else ""
+        cmd     = clean ++ "cabal configure; cabal build"
+    buildCmd cmd
 
 cabalInstall :: ExitCode -> IO ()
 cabalInstall ExitSuccess    = do
@@ -43,6 +52,16 @@ cabalInstall ExitSuccess    = do
     xd <- getXMonadDir
     copyFile (xd </> "dist/build/xmonad/xmonad") (hd </> "bin/xmonad")
 cabalInstall r              = EH.defaultPostCompile r
+
+stackBuild :: Bool -> IO ExitCode
+stackBuild force  = do
+    let clean   = if force then "stack clean; " else ""
+        cmd     = clean ++ "stack build"
+    buildCmd cmd
+
+stackInstall :: ExitCode -> IO ()
+stackInstall ExitSuccess    = void (buildCmd "stack install")
+stackInstall r              = EH.defaultPostCompile r
 
 -- "Lock file already exists" exception. It may be useful, because 'mod+q'
 -- executes (by default) `xmonad --recompile && xmonad --restart` using shell,
