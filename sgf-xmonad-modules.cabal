@@ -1,8 +1,8 @@
 name:                sgf-xmonad-modules
-version:             0.4.1.1
+version:             1.0.0.0
 synopsis:            sgf's xmonad modules
 description:         sgf's xmonad modules
-homepage:            https://github.com/sgf-dma/my-xmonad-modules
+homepage:            https://github.com/sgf-dma/sgf-xmonad-modules
 license:             BSD3
 license-file:        LICENSE
 author:              sgf
@@ -57,4 +57,4 @@ library
 
 source-repository head
   type:     git
-  location: https://github.com/sgf-dma/my-xmonad-modules
+  location: https://github.com/sgf-dma/sgf-xmonad-modules
