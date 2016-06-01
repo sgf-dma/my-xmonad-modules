@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Sgf.XMonad.Restartable
     ( modifyXS
@@ -7,6 +10,7 @@ module Sgf.XMonad.Restartable
     , withProcess
     , getProcess
     , getProcesses
+    , manageProcess
     , findWins
     , RestartClass (..)
     , withProcessP
@@ -24,18 +28,34 @@ module Sgf.XMonad.Restartable
     , addProg
     , launchProg
     , handleProgs
+    , Arguments (..)
+    , NoArgs (..)
+    -- Default program.
     , Program
+    -- Program lenses.
     , progBin
     , progArgs
     , progWait
+    , progWorkspace
+    , progLaunchKey
+    , progStartup
+    --, progPid
     , defaultProgram
+    , progCmd
+    -- Program's RestartClass methods implementation.
+    , programRunP
+    , programKillP
+    , programManageP
+    , programDoLaunch
+    , programLaunchAtStartup
+    , programLaunchKey
+    , programModifyPATH
     )
   where
 
 import Data.List
 import Data.Maybe
-import Data.Monoid
-import Control.Applicative
+import Data.Typeable
 import Control.Monad
 import Control.Exception (try, IOException)
 import Control.Concurrent (threadDelay)
@@ -90,6 +110,14 @@ getProcess y        = XS.gets (find (== y) . viewA processList)
 getProcesses :: ProcessClass a => a -> X [a]
 getProcesses y      = XS.gets (viewA processList `asTypeOf` const [y])
 
+-- Run given ManageHook, if new process PID matches.
+manageProcess :: ProcessClass a => ManageHook -> Maybe a -> MaybeManageHook
+manageProcess mh mx = do
+    mp <- pid
+    if isJust mx && mp == viewA pidL (fromJust mx)
+      then Just <$> mh
+      else return Nothing
+
 -- Find all windows, which have pid of given ProcessClass instance in
 -- _NET_WM_PID property.
 findWins :: ProcessClass a => a -> X [Window]
@@ -129,6 +157,8 @@ class (Monoid a, ProcessClass a) => RestartClass a where
     -- Key for restarting program.
     launchKey :: a -> [(ButtonMask, KeySym)]
     launchKey       = const []
+    modifyPATH :: a -> X (Maybe ([FilePath] -> [FilePath]))
+    modifyPATH      = const $ return (Just id)
 
 -- Version of withProcess, which `mappend`-s process we're searching by and
 -- process we've found. Thus, some fields of found process may be updated.
@@ -190,6 +220,7 @@ restartP            = withProcessP restartP'
 toggleP :: RestartClass a => a -> X ()
 toggleP             = withProcessP toggleP'
 
+-- FIXME: Should i trace only one program or all of them?
 -- Print all tracked in Extensible State programs with given type.
 traceP :: RestartClass a => a -> X ()
 traceP y            = getProcesses y >>= mapM_ (trace . show)
@@ -237,12 +268,7 @@ launchProg x (XConfig {modMask = m}) = do
 -- current Window pid (from _NET_WM_PID) matches pid of any program with the
 -- same type stored in Extensible State.
 manageProg :: RestartClass a => a -> MaybeManageHook
-manageProg y        = do
-    mp <- pid
-    mx <- liftX $ getProcess y
-    if isJust mx && mp == viewA pidL (fromJust mx)
-      then Just <$> manageP y
-      else return Nothing
+manageProg y        = liftX (getProcess y) >>= manageProcess (manageP y)
 
 -- Merge ProgConfig-s into existing XConfig properly and add key for showing
 -- program launch keys.
@@ -283,6 +309,15 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
                 ]
     addShowKey Nothing _ = []
 
+class Arguments a where
+    serialize   :: MonadIO m => a -> m [String]
+    defaultArgs :: a
+data NoArgs         = NoArgs
+  deriving (Show, Read, Typeable, Eq)
+instance Arguments NoArgs where
+    serialize _     = return []
+    defaultArgs     = NoArgs
+
 -- Default program providing set of fields needed for regular program and
 -- default runP implementation.  Note: when using newtypes around Program
 -- never define `doLaunchP (p x) = doLaunchP x`, because in that case value of
@@ -290,25 +325,36 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
 -- (p Program) (i.e. newtype). Instead, i should define `doLaunchP` for
 -- newtype p directly, e.g. `doLaunchP = restartP` (or not define at all and
 -- use default).
-data Program        = Program
-                        { _progPid  :: Maybe ProcessID
-                        , _progBin  :: FilePath
-                        , _progArgs :: [String]
-                        , _progWait :: Int
-                        }
-  deriving (Show, Read, Typeable)
-progPid :: LensA Program (Maybe ProcessID)
+data Program a where
+    Program :: Arguments a =>
+               { _progPid  :: Maybe ProcessID
+               , _progBin  :: FilePath
+               , _progArgs :: a
+               , _progPATH :: Maybe [FilePath]
+               , _progWait :: Int
+               , _progWorkspace :: String   -- Simplified manageP .
+               , _progLaunchKey :: [(ButtonMask, KeySym)]
+               , _progStartup :: Bool
+               } -> Program a
+deriving instance Typeable Program
+deriving instance Show a => Show (Program a)
+deriving instance (Arguments a, Read a) => Read (Program a)
+
+progPid :: LensA (Program a) (Maybe ProcessID)
 progPid f z@(Program {_progPid = x})
                     = fmap (\x' -> z{_progPid = x'}) (f x)
-progBin :: LensA Program FilePath
+progBin :: LensA (Program a) FilePath
 progBin f z@(Program {_progBin = x})
                     = fmap (\x' -> z{_progBin = x'}) (f x)
-progArgs :: LensA Program [String]
+progArgs :: LensA (Program a) a
 progArgs f z@(Program {_progArgs = x})
                     = fmap (\x' -> z{_progArgs = x'}) (f x)
+progPATH :: LensA (Program a) (Maybe [FilePath])
+progPATH f z@(Program {_progPATH = x})
+                    = fmap (\x' -> z{_progPATH = x'}) (f x)
 -- Wait specified number of microseconds after spawning a program. Only
 -- positive integers (or zero) allowed in progWait .
-progWait :: LensA Program Int
+progWait :: LensA (Program a) Int
 progWait f z@(Program {_progWait = x})
                     = fmap (\x' -> z{_progWait = unsignedInt x'}) (f x)
   where
@@ -316,27 +362,93 @@ progWait f z@(Program {_progWait = x})
     unsignedInt i
       | i < 0       = 0
       | otherwise   = i
-defaultProgram :: Program
+progWorkspace :: LensA (Program a) String
+progWorkspace f z@(Program {_progWorkspace = x})
+                    = fmap (\x' -> z{_progWorkspace = x'}) (f x)
+progLaunchKey :: LensA (Program a) [(ButtonMask, KeySym)]
+progLaunchKey f z@(Program {_progLaunchKey = x})
+                    = fmap (\x' -> z{_progLaunchKey = x'}) (f x)
+progStartup :: LensA (Program a) Bool
+progStartup f z@(Program {_progStartup = x})
+                    = fmap (\x' -> z{_progStartup = x'}) (f x)
+defaultProgram :: Arguments a => Program a
 defaultProgram      = Program
                         { _progPid  = Nothing
                         , _progBin  = ""
-                        , _progArgs = []
+                        , _progArgs = defaultArgs
+                        , _progPATH = Nothing
                         , _progWait = 0
+                        , _progWorkspace = ""
+                        , _progLaunchKey = []
+                        , _progStartup = True
                         }
+
+-- Just a helper function.
+progCmd :: (MonadIO m, Arguments a) => Program a -> m (FilePath, [String])
+progCmd x           = do
+                        args <- serialize (viewA progArgs x)
+                        return (viewA progBin x, args)
+
+-- I make Program's RestartClass methods available as separate functions,
+-- because when definining new RestartClass instances for type based on
+-- Program (particularly, for which i can define `Lens a (Program b)`), i may
+-- want to use some methods as they were defined for Program. Though, i can
+-- just call corresponding method on Program value created from type a value,
+-- this may not work as expected: if Program's method calls other RestartClass
+-- methods (e.g. `runP` below calls `modifyPATH`), then, when invoked on
+-- Program value, that other method would be choosed from Program's instance,
+-- but not from type a instance as i may expect (e.g. `modifyPATH` of
+-- Program's instance would be used, but not `modifyPATH` from type a
+-- instance).
+programRunP :: (RestartClass a, Arguments b) => LensA a (Program b)
+               -> a -> X a
+programRunP progL x = do
+                        let w = viewA (progL . progWait) x
+                        f <- modifyPATH x
+                        p <- progCmd (viewA progL x) >>=
+                             uncurry (spawnPIDWithPATH' f)
+                        when (w > 0) $ io (threadDelay w)
+                        return (setA pidL (Just p) x)
+programKillP :: (Arguments b, Typeable b, Show b, Read b, Eq b)
+                => LensA a (Program b) -> a -> X a
+programKillP progL  = modifyAA progL killP
+programManageP :: Arguments b => LensA a (Program b) -> a -> ManageHook
+programManageP progL x  = let w = viewA (progL . progWorkspace) x
+                          in  if null w then idHook else doShift w
+programDoLaunch :: (Arguments b, Typeable b, Show b, Read b, Eq b)
+                   => LensA a (Program b) -> a -> X ()
+programDoLaunch progL   = doLaunchP . viewA progL
+programLaunchAtStartup :: Arguments b => LensA a (Program b) -> a -> Bool
+programLaunchAtStartup progL    = viewA (progL . progStartup)
+programLaunchKey :: Arguments b => LensA a (Program b) -> a
+                    -> [(ButtonMask, KeySym)]
+programLaunchKey progL  = viewA (progL . progLaunchKey)
+programModifyPATH :: Arguments b => LensA a (Program b) -> a
+                     -> X (Maybe ([FilePath] -> [FilePath]))
+programModifyPATH progL = return . Just .  maybe id const
+                            . viewA (progL . progPATH)
 
 -- I assume only one instance of each program by default. I.e. different
 -- programs should have different types.
-instance Eq Program where
-    _ == _          = True
-instance Monoid Program where
+instance Eq a => Eq (Program a) where
+    x == y          =      viewA progBin  x == viewA progBin  y
+                        && viewA progArgs x == viewA progArgs y
+instance Arguments a => Monoid (Program a) where
     x `mappend` y   = setA progPid (viewA progPid x) y
     mempty          = defaultProgram
-instance ProcessClass Program where
+instance (Arguments a, Typeable a, Show a, Read a, Eq a)
+         => ProcessClass (Program a) where
     pidL            = progPid
-instance RestartClass Program where
-    runP x          = do
-                        p <- spawnPID' (viewA progBin x) (viewA progArgs x)
-                        let w = viewA progWait x
-                        when (w > 0) $ io (threadDelay w)
-                        return (setA pidL (Just p) x)
+instance (Arguments a, Typeable a, Show a, Read a, Eq a)
+         => RestartClass (Program a) where
+    runP x          = programRunP id x
+    launchAtStartup = programLaunchAtStartup id
+    launchKey       = programLaunchKey id
+    manageP         = programManageP id
+    -- I interpret Nothing in `progPATH` as "use default" (here it means "use
+    -- PATH from environment"). Thus, it's not possible to disable PATH search
+    -- using `progPATH`: i should either define `modifyPATH` to `const
+    -- Nothing` (note, there `Nothing` has different meaning, which is defined
+    -- by `searchPATH` function) or use slashes in `progBin`.
+    modifyPATH x    = return . Just $ maybe id const (viewA progPATH x)
 

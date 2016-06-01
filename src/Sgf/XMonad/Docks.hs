@@ -27,8 +27,8 @@ import Control.Monad.State
 import Control.Applicative
 
 import XMonad
+import qualified XMonad.StackSet as W
 import XMonad.Hooks.ManageDocks hiding (docksEventHook)
-import XMonad.Hooks.ManageHelpers
 import XMonad.Hooks.DynamicLog
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Util.EZConfig (additionalKeys)
@@ -48,13 +48,15 @@ class ProcessClass a => DockClass a where
 addDock :: (RestartClass a, DockClass a, LayoutClass l Window) =>
            a -> ProgConfig l
 addDock d           = ProgConfig
-      -- Send dock window to bottom of X window stack, so it does not cover
-      -- application windows created earlier, when Struts are off (i assume,
-      -- that docks are restarted with xomnad, but applications are not, thus
-      -- after xmonad restart dock window will be above in X stack, then
-      -- windows of already running applications). And call dock's ManageHook,
-      -- if any.
-      { progManageHook  = lowerDock d
+      -- Raise all managed by xmonad windows (from all workspaces) on top of X
+      -- stack. When i restart docks, their windows will be placed in X stack
+      -- above application windows opened earlier.  And when i switch Struts
+      -- off, these old application windows will go under docks.  To fix this,
+      -- i will raise all managed windows. This may change windows order on
+      -- screen, but only for a short time, when new dock opens. See
+      -- `raiseAllWindows` for details.
+      { progManageHook  = liftX (getProcess d) >>=
+                            manageProcess (liftX raiseAllWindows >> manageP d)
       -- Launch dock process: PP does not saved in Extensible State and should
       -- be reinitialized before start by `doLaunchP` . To make this happen,
       -- functions used to start process should use `withProcessP` (not just
@@ -69,25 +71,40 @@ addDock d           = ProgConfig
       , showProgKeys    = showKeys d
       }
 
--- Send dock window to bottom of X window stack, so it does not cover
--- application windows created earlier, when Struts are off (before xmonad
--- restart, if dock has been restarted). See "3.8 Changing Window Stacking
--- Order" from http://tronche.com/gui/x/xlib/window/stacking-order.html for
--- details on `lowerDock`. And call dock's ManageHook, if any.
-lowerDock :: RestartClass a => a -> MaybeManageHook
-lowerDock d         = do
-    mp <- pid
-    w  <- ask
-    mx <- liftX $ getProcess d
-    if mp == maybe Nothing (viewA pidL) mx
-      then Just <$> (liftX (lowerDock' w ) >> manageP d)
-      else return Nothing
-  where
-    lowerDock' :: Window -> X () 
-    lowerDock' w    = withDisplay (io . flip lowerWindow w)
+-- Raise all managed by xmonad windows (from all workspaces) on top of X
+-- stack. When i restart docks, their windows will be placed in X stack
+-- above application windows opened earlier.  And when i switch Struts off,
+-- these old application windows will go under docks. To render any
+-- operation (change in StackSet) xmonad calls `windows` from
+-- XMonad/Operations.hs, which calls `restackWindows` to restack managed
+-- windows in X, and `restackWindows` does not change the position of the
+-- the first restacked window
+-- (https://tronche.com/gui/x/xlib/window/XRestackWindows.html). So, to lay
+-- all managed windows above docks, i should raise either that first
+-- restacked window at each workspace to the top of X stack (then
+-- `restackWindows` will raise other managed windows from corresponding
+-- workspace after it) or raise all managed windows.
+--
+-- Restacked windows list is `map fst (flt ++ rs)`, where 'flt' is floating
+-- windows and rs - tiling.  Windows order in 'flt' is determined by
+-- `integrate`. Windows order in 'rs' is determined by layout (`runLayout`).
+-- Thus, the only way to find first window in 'rs' is to run `runLayout`,
+-- which may (theoretically) affect X state (note, that i don't want to also
+-- run `updateLayout`).
+--
+-- On the other hand, i may just raise all windows. It may change windows
+-- order on screen, but only for a short time, when new dock opens. This
+-- function is called from ManageHook and runs in X monad, thus `raiseWindow`
+-- will run before `windows` call in `manage` (when pure function returned by
+-- ManageHook is evaluated).  Then `windows` will overwrite window layout for
+-- current workspace according to `runLayout`. For other workspaces `windows`
+-- will overwrite window layout, when processing workspace switch.
+raiseAllWindows :: X ()
+raiseAllWindows     = withDisplay $ \d ->
+    withWindowSet (mapM_ (io . raiseWindow d) . W.allWindows)
 
 toggleDock :: DockClass a => a -> XConfig l -> [((ButtonMask, KeySym), X ())]
-toggleDock x (XConfig {modMask = m}) = maybeToList $ do
+toggleDock x XConfig {modMask = m} = maybeToList $ do
     (mk, k) <- dockToggleKey x
     return ((m .|. mk, k), toggleProcessStruts x)
 
@@ -162,42 +179,42 @@ dockLog y           = do
 
 -- Lenses to PP.
 ppCurrentL :: LensA PP (WorkspaceId -> String)
-ppCurrentL f z@(PP {ppCurrent = x})
+ppCurrentL f z@PP {ppCurrent = x}
                     = fmap (\x' -> z{ppCurrent = x'}) (f x)
 ppVisibleL :: LensA PP (WorkspaceId -> String)
-ppVisibleL f z@(PP {ppVisible = x})
+ppVisibleL f z@PP {ppVisible = x}
                     = fmap (\x' -> z{ppVisible = x'}) (f x)
 ppHiddenL :: LensA PP (WorkspaceId -> String)
-ppHiddenL f z@(PP {ppHidden = x})
+ppHiddenL f z@PP {ppHidden = x}
                     = fmap (\x' -> z{ppHidden = x'}) (f x)
 ppHiddenNoWindowsL :: LensA PP (WorkspaceId -> String)
-ppHiddenNoWindowsL f z@(PP {ppHiddenNoWindows = x})
+ppHiddenNoWindowsL f z@PP {ppHiddenNoWindows = x}
                     = fmap (\x' -> z{ppHiddenNoWindows = x'}) (f x)
 ppUrgentL :: LensA PP (WorkspaceId -> String)
-ppUrgentL f z@(PP {ppUrgent = x})
+ppUrgentL f z@PP {ppUrgent = x}
                     = fmap (\x' -> z{ppUrgent = x'}) (f x)
 ppSepL :: LensA PP String
-ppSepL f z@(PP {ppSep = x})
+ppSepL f z@PP {ppSep = x}
                     = fmap (\x' -> z{ppSep = x'}) (f x)
 ppWsSepL :: LensA PP String
-ppWsSepL f z@(PP {ppWsSep = x})
+ppWsSepL f z@PP {ppWsSep = x}
                     = fmap (\x' -> z{ppWsSep = x'}) (f x)
 ppTitleL :: LensA PP (String -> String)
-ppTitleL f z@(PP {ppTitle = x})
+ppTitleL f z@PP {ppTitle = x}
                     = fmap (\x' -> z{ppTitle = x'}) (f x)
 ppLayoutL :: LensA PP (String -> String)
-ppLayoutL f z@(PP {ppLayout = x})
+ppLayoutL f z@PP {ppLayout = x}
                     = fmap (\x' -> z{ppLayout = x'}) (f x)
 ppOrderL :: LensA PP ([String] -> [String])
-ppOrderL f z@(PP {ppOrder = x})
+ppOrderL f z@PP {ppOrder = x}
                     = fmap (\x' -> z{ppOrder = x'}) (f x)
 ppSortL :: LensA PP (X ([WindowSpace] -> [WindowSpace]))
-ppSortL f z@(PP {ppSort = x})
+ppSortL f z@PP {ppSort = x}
                     = fmap (\x' -> z{ppSort = x'}) (f x)
 ppExtrasL :: LensA PP [X (Maybe String)]
-ppExtrasL f z@(PP {ppExtras = x})
+ppExtrasL f z@PP {ppExtras = x}
                     = fmap (\x' -> z{ppExtras = x'}) (f x)
 ppOutputL :: LensA PP (String -> IO ())
-ppOutputL f z@(PP {ppOutput = x})
+ppOutputL f z@PP {ppOutput = x}
                     = fmap (\x' -> z{ppOutput = x'}) (f x)
 

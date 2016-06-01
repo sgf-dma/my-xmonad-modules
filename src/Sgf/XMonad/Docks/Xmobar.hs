@@ -1,28 +1,18 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Sgf.XMonad.Docks.Xmobar
-    ( Xmobar
-    -- I don't export this Lens, because it will allow to construct Xmobar
-    -- value with broken (xmobarConf -> progArgs) relationship and then
-    -- xmobarConf Lens will break Lens laws (see below). Moreover, Monoid
-    -- instance does not merge Program records at all. And, finally, merging
-    -- it in Monoid instance is bad: the only way to do it correctly is to
-    -- rewrite xmobarProg *strictly* after xmobarConf have rewritten.
-    -- Otheriwse, i'll have inconsistent value, where current xmobarConf is
-    -- not the last argument in progArgs, which lead to config added twice to
-    -- progArgs.
-    -- , xmobarProg
+    ( XmobarArgs
     , xmobarConf
+    , Xmobar
+    , xmobarProg
     , xmobarPP
     , xmobarToggle
-    , xmobarLaunch
     , defaultXmobar
     , defaultXmobarPP
     )
   where
 
-import Prelude
-import Data.Monoid
+import Data.Function (on)
 import Control.Monad.State
 import Control.Exception
 import System.IO (hPutStrLn)
@@ -35,7 +25,7 @@ import qualified XMonad.Hooks.DynamicLog as L
 import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.Control.Exception
-import Sgf.XMonad.Util.Run (spawnPipe')
+import Sgf.XMonad.Util.Run (spawnPipeWithPATH')
 import Sgf.XMonad.Restartable
 import Sgf.XMonad.Docks
 
@@ -51,45 +41,41 @@ resetPipe           = setA ppOutputL (const (return ()))
 defaultXmobarPP :: L.PP
 defaultXmobarPP     = resetPipe L.xmobarPP
 
+-- If only filename is specified (e.g. for xmobar conf), it's taken from home
+-- directory. Otherwise, the path preserved as is. This adds default for most
+-- common case (filename only) and still allows to specify arbitrary path.
+normaliseConf :: MonadIO m => FilePath -> m FilePath
+normaliseConf cf
+  | cf /= [] && takeFileName cf == cf
+                    = fmap (</> cf) (liftIO getHomeDirectory)
+  | otherwise       = return cf
+
+-- XmobarArgs should provide options *with* container. I use records as
+-- container, because only in that case i may easily define Eq instance to
+-- consider only certain records (options). Any list-like container will
+-- inherently make option lists with different length non-equal.
+data XmobarArgs     = XmobarArgs {_xmobarConf :: FilePath}
+  deriving (Show, Read, Typeable, Eq)
+xmobarConf :: LensA XmobarArgs FilePath
+xmobarConf f z@XmobarArgs {_xmobarConf = x}
+                    = fmap (\x' -> z{_xmobarConf = x'}) (f x)
+instance Arguments XmobarArgs where
+    defaultArgs     = XmobarArgs {_xmobarConf = ".xmobarrc"}
+    serialize x     = do
+                        xcf <- normaliseConf (viewA xmobarConf x)
+                        unless' (null xcf) (return [xcf])
+
 -- This Xmobar definition suitable for launching several xmobars. They will
 -- be distinguished by config file name.
-data Xmobar      = Xmobar
-                        { _xmobarProg    :: Program
-                        , _xmobarConf    :: FilePath
+data Xmobar         = Xmobar
+                        { _xmobarProg    :: Program XmobarArgs
                         , _xmobarPP      :: Maybe L.PP
                         , _xmobarToggle  :: Maybe (ButtonMask, KeySym)
-                        , _xmobarLaunch  :: [(ButtonMask, KeySym)]
                         }
   deriving (Typeable)
--- This Lens exposes underlying Program fields. Using it directly may break
--- some relationships defined by other Lenses (like xmobarConf) and will cause
--- them to break Lens laws. Thus, i should use it with care.
-xmobarProg :: LensA Xmobar Program
-xmobarProg f z@(Xmobar {_xmobarProg = x})
+xmobarProg :: LensA Xmobar (Program XmobarArgs)
+xmobarProg f z@Xmobar {_xmobarProg = x}
                     = fmap (\x' -> z{_xmobarProg = x'}) (f x)
--- This Lens adds xmobarConf value to progArgs aside from just updating
--- xmobarConf, effectively defining function
--- (xmobarConf -> progArgs -> progArgs) on Xmobar fields. I assume, that
--- xmobar config is the last xmobar argument (and there is only one): if old
--- value is there, i replace it with new one, otherwise i add new value to the
--- end. Note, that such Lens definition breaks law: 'set l (get l a) a = a',
--- when applied to wrong Xmobar value (i.e. if a has non-null xmobarConf and
--- xmobarConf is not (or is not last) in progArgs).  Though, with current Eq
--- definition, this law holds even in that case. For ensuring, that law
--- doesn't break, i should always overwrite default Xmobar values.
-xmobarConf :: LensA Xmobar FilePath
-xmobarConf f z@(Xmobar {_xmobarConf = xcf, _xmobarProg = xp})
-                    = fmap (\xcf' -> z
-                            { _xmobarConf = xcf'
-                            , _xmobarProg = modifyA progArgs
-                                                    (updateConf xcf') xp
-                            }
-                        ) (f xcf)
-  where
-    updateConf :: FilePath -> [String] -> [String]
-    updateConf xcf' xargs = case splitAt 1 (reverse xargs) of
-                              ([cf], _) | cf == xcf -> init xargs ++ [xcf']
-                              _                     ->      xargs ++ [xcf']
 -- Lens to PP, which overwrites ppOutput: generally, ppOutput is set in runP
 -- and should write to pipe to xmobar, so i should not allow modifying it for
 -- anyone. So (old _xmobarPP value is on the left of plus sign, new - on the
@@ -101,7 +87,7 @@ xmobarConf f z@(Xmobar {_xmobarConf = xcf, _xmobarProg = xp})
 --                     Nothing at xmonad restart (recompile + reload)..
 -- Just    + Just    = Just with pp preserved from old value
 xmobarPP :: LensA Xmobar (Maybe L.PP)
-xmobarPP f z@(Xmobar {_xmobarPP = x})
+xmobarPP f z@Xmobar {_xmobarPP = x}
                     = fmap (\y -> z
                             { _xmobarPP = modifyA maybeL
                                                   (updatePPOutput x) y
@@ -113,46 +99,27 @@ xmobarPP f z@(Xmobar {_xmobarPP = x})
     updatePPOutput (Just t) = setA ppOutputL (viewA ppOutputL t)
 -- Lens to PP, which does not modify PP. Do not export, for internal use only!
 xmobarPP' :: LensA Xmobar (Maybe L.PP)
-xmobarPP' f z@(Xmobar {_xmobarPP = x})
+xmobarPP' f z@Xmobar {_xmobarPP = x}
                     = fmap (\x' -> z{_xmobarPP = x'}) (f x)
 xmobarToggle :: LensA Xmobar (Maybe (ButtonMask, KeySym))
-xmobarToggle f z@(Xmobar {_xmobarToggle = x})
+xmobarToggle f z@Xmobar {_xmobarToggle = x}
                     = fmap (\x' -> z{_xmobarToggle = x'}) (f x)
-xmobarLaunch :: LensA Xmobar [(ButtonMask, KeySym)]
-xmobarLaunch f z@(Xmobar {_xmobarLaunch = x})
-                    = fmap (\x' -> z{_xmobarLaunch = x'}) (f x)
--- Default for type, but not default expected by users of this type.
-defaultXmobar' :: Xmobar
-defaultXmobar'      = Xmobar
-                        { _xmobarProg   = defaultProgram
-                        , _xmobarConf   = ""
+-- I should not initialize PP in defaultXmobar, otherwise runP will open pipe
+-- to xmobar and xmonad blocks, when pipe fills up. Thus, if user uses
+-- StdinReader in xmobarrc, he should set PP explicitly (by overwriting
+-- defaultXmobarPP).
+defaultXmobar :: Xmobar
+defaultXmobar       = Xmobar
+                        { _xmobarProg   = setA progBin "xmobar" defaultProgram
                         , _xmobarPP     = Nothing
                         , _xmobarToggle = Nothing
-                        , _xmobarLaunch = []
                         }
-
--- Default expected by user's of Xmobar type. Usually it should be used
--- instead of type default. Particularly, this ensures, that all Lens laws
--- hold (see xmobarConf Lens).  All Xmobar values should be created by
--- overwriting default (this or type default) through Lenses (PP lenses
--- provided by XMonad.Docks). Here i use Lenses over type default for ensuring
--- correct xmobarConf initialization.
--- Also, note, that i should not initialize PP in defaultXmobar, otherwise
--- runP will open pipe to xmobar and xmonad blocks, when pipe fills up. Thus,
--- if user uses StdinReader in xmobarrc, he should set PP explicitly (by
--- overwriting defaultXmobarPP).
-defaultXmobar :: Xmobar
-defaultXmobar       = setA (xmobarProg . progBin) "xmobar"
-                        . setA xmobarConf ".xmobarrc"
-                        $ defaultXmobar'
 
 -- Show and Read instances omiting some non-showable/non-readable records.
 instance Show Xmobar where
     showsPrec d x   = showParen (d > app_prec) $
         showString "Xmobar {_xmobarProg = " . showsPrec d (viewA xmobarProg x)
-        . showString ", _xmobarConf = "     . showsPrec d (viewA xmobarConf x)
         . showString ", _xmobarToggle = "   . showsPrec d (viewA xmobarToggle x)
-        . showString ", _xmobarLaunch = "   . showsPrec d (viewA xmobarLaunch x)
         . showString "}"
       where
         app_prec    = 10
@@ -160,66 +127,51 @@ instance Read Xmobar where
     readsPrec d     = readParen (d > app_prec) . runStateT $ do
         readLexsM ["Xmobar"]
         xp <- readLexsM ["{", "_xmobarProg", "="] >> readsPrecM d
-        xc <- readLexsM [",", "_xmobarConf", "="] >> readsPrecM d
         xt <- readLexsM [",", "_xmobarToggle", "="] >> readsPrecM d
-        xl <- readLexsM [",", "_xmobarLaunch", "="] >> readsPrecM d
         readLexsM ["}"]
         -- The same as above: i need to overwrite records of defaultXmobar
         -- here, so right after reading saved extensible state ppOutput will
         -- be set to ignore output, until xmobar process will be restarted.
         let x = setA xmobarProg xp
-                  . setA xmobarConf xc
                   . setA xmobarToggle xt
-                  . setA xmobarLaunch xl
                   $ defaultXmobar
         return x
       where
         app_prec    = 10
 
 instance Eq Xmobar where
-    x == y
-      | viewA xmobarConf x == viewA xmobarConf y = True
-      | otherwise   = False
--- Program Xmobar records are *not* merged. After all, xmobarProg does not
--- exported and noone should be able to alter Program record in any way.  I.e.
--- all Program records should be derivable from Xmobar own records. Only in
--- that case i can preserve record dependencies (like in xmobarConf).
+    (==)            = (==) `on` viewA xmobarProg
+-- Just use second argument, but *merge* Program records. I need to mappend
+-- Program records, because Program may contain some fields, which i don't
+-- know how to merge or don't know about them at all.
 instance Monoid Xmobar where
-    x `mappend` y   = setA xmobarConf (viewA xmobarConf y)
-                        . setA xmobarPP (viewA xmobarPP y)
-                        . setA xmobarToggle (viewA xmobarToggle y)
-                        . setA xmobarLaunch (viewA xmobarLaunch y)
-                        $ x
+    x `mappend` y   = modifyA xmobarProg (viewA xmobarProg x `mappend`) y
     mempty          = defaultXmobar
 instance ProcessClass Xmobar where
     pidL            = xmobarProg . pidL
 instance RestartClass Xmobar where
-    runP x          = userCodeDef x $ do
-        xcf <- absXmobarConf
-        liftIO $ doesFileExist' xcf `catch` (throw . XmobarConfException)
-        case viewA xmobarPP' x of
+    runP x          = userCodeDef x $ case viewA xmobarPP' x of
           Just _    -> do
-            (h, p) <- spawnPipe' "xmobar" (viewA (xmobarProg . progArgs) x)
+            f <- modifyPATH x
+            (h, p) <- progCmd (viewA xmobarProg x) >>=
+                      uncurry (spawnPipeWithPATH' f)
             return
               . setA pidL (Just p)
               . setA (xmobarPP' . maybeL . ppOutputL) (hPutStrLn h)
               $ x
-          Nothing   -> modifyAA xmobarProg runP x
-      where
-        -- If xmobarConf is relative, take it from home directory, not from
-        -- current directory.
-        absXmobarConf :: MonadIO m => m FilePath
-        absXmobarConf   = liftIO $ do
-          d <- getHomeDirectory
-          let cf = viewA xmobarConf x
-          return (if isRelative cf then d </> cf else cf)
+          Nothing   -> programRunP xmobarProg x
     -- I need to reset pipe (to ignore output), because though process got
     -- killed, xmobar value still live in Extensible state and dockLog does
     -- not check process existence - just logs according to PP, if any.
-    killP           = modifyAA xmobarProg killP
+    killP           = programKillP xmobarProg
                         . modifyA (xmobarPP' . maybeL) resetPipe
     doLaunchP       = restartP
-    launchKey       = viewA xmobarLaunch
+    launchKey       = programLaunchKey xmobarProg
+    launchAtStartup = programLaunchAtStartup xmobarProg
+    modifyPATH _    = do
+        h <- liftIO getHomeDirectory
+        -- FIXME: Read symbolic link and fallback to id, if it does not exist.
+        return (Just ((h </> ".local/bin") :))
 instance DockClass Xmobar where
     dockToggleKey   = viewA xmobarToggle
     ppL             = xmobarPP
