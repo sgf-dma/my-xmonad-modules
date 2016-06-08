@@ -111,6 +111,6 @@ userRecompile       = do
                              ++ " Compile it manually first.\""
   where
     isExecutable :: FilePath -> IO Bool
-    isExecutable f  = catch (getPermissions f >>= return . executable)
+    isExecutable f  = catch (fmap executable (getPermissions f))
                             (\e -> return (const False (e :: IOError)))
 

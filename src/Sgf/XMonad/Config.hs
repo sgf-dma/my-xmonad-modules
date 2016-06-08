@@ -41,7 +41,7 @@ data SessionConfig l = SessionConfig
                         , programHelpKey    :: Maybe (ButtonMask, KeySym)
                         , docksToggleKey    :: Maybe (ButtonMask, KeySym)
                         , defaultWorkspacesAtStartup :: Bool
-                        , defaultWorkspaces :: (WorkspaceId -> Bool)
+                        , defaultWorkspaces :: WorkspaceId -> Bool
                         , focusHook         :: [FocusHook]
                         , focusLockKey      :: Maybe (ButtonMask, KeySym)
                         }
