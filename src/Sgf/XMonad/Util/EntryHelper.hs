@@ -102,13 +102,14 @@ handleRecompile     = additionalKeys <*> recompileKeys
 userRecompile :: MonadIO m => m ()
 userRecompile       = do
     dir <- getXMonadDir
-    let binn = "xmonad-"++arch++"-"++os
-        bin  = dir </> binn
+    let binn    = "xmonad-"++arch++"-"++os
+        bin     = dir </> binn
+        errMsg  = "User's xmonad binary " ++ bin ++ " not found. "
+                    ++ " Compile it manually first."
     b <- liftIO (isExecutable bin)
     if b
       then spawn $ bin ++ " --recompile && " ++ bin ++ " --restart"
-      else spawn $ "xmessage \"User's xmonad binary " ++ bin ++ " not found."
-                             ++ " Compile it manually first.\""
+      else trace errMsg >> spawn ("xmessage \"" ++ errMsg ++ "\"")
   where
     isExecutable :: FilePath -> IO Bool
     isExecutable f  = catch (fmap executable (getPermissions f))
