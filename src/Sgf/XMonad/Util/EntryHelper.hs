@@ -7,17 +7,21 @@ module Sgf.XMonad.Util.EntryHelper
     , cabalInstall
     , stackBuild
     , stackInstall
+    , handleRecompile
+    , userRecompile
     )
   where
 
 import Control.Monad
 import Control.Exception
+import System.Info
 import System.FilePath  ((</>))
-import System.Directory (getHomeDirectory, copyFile)
+import System.Directory
 import System.Exit
 
 import XMonad
 import qualified XMonad.Util.EntryHelper as EH
+import XMonad.Util.EZConfig
 
 
 -- Redefine withHelper to use cabal for building xmonad and throw an
@@ -79,4 +83,34 @@ instance Show LockAlreadyExists where
       | null f      = "Lock file already exists."
       | otherwise   = "Lock file " ++ f ++ " already exists."
 instance Exception LockAlreadyExists where
+
+
+handleRecompile :: XConfig l -> XConfig l
+handleRecompile     = additionalKeys <*> recompileKeys
+  where
+    recompileKeys :: XConfig l -> [((ButtonMask, KeySym), X ())]
+    recompileKeys XConfig {modMask = m} = [((m,  xK_q), userRecompile)]
+
+-- Recompile xmonad binary by calling user's binary instead of xmonad found in
+-- PATH. To support custom build systems (like stack) i need to recompile
+-- using user's binary (which has appropriate hooks). And by calling it
+-- directly i make recompilation independent from PATH value. Note, that
+-- because now argument handling in xmonad itself was moved from main to
+-- xmonad function, i should create user's binary as expected by default
+-- xmonad build and update its timestamp to prevent default xmonad build from
+-- running.
+userRecompile :: MonadIO m => m ()
+userRecompile       = do
+    dir <- getXMonadDir
+    let binn = "xmonad-"++arch++"-"++os
+        bin  = dir </> binn
+    b <- liftIO (isExecutable bin)
+    if b
+      then spawn $ bin ++ " --recompile && " ++ bin ++ " --restart"
+      else spawn $ "xmessage \"User's xmonad binary " ++ bin ++ " not found."
+                             ++ " Compile it manually first.\""
+  where
+    isExecutable :: FilePath -> IO Bool
+    isExecutable f  = catch (getPermissions f >>= return . executable)
+                            (\e -> return (const False (e :: IOError)))
 
