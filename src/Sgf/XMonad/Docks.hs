@@ -45,7 +45,7 @@ class ProcessClass a => DockClass a where
     ppL             :: LensA a (Maybe PP)
     ppL             = nothingL
 
-addDock :: (RestartClass a, DockClass a, LayoutClass l Window) =>
+addDock :: (RestartClass a, DockClass a) =>
            a -> ProgConfig l
 addDock d           = ProgConfig
       -- Raise all managed by xmonad windows (from all workspaces) on top of X
