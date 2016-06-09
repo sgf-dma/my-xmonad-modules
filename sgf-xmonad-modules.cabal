@@ -1,5 +1,5 @@
 name:                sgf-xmonad-modules
-version:             1.0.0.0
+version:             1.1.0.0
 synopsis:            sgf's xmonad modules
 description:         sgf's xmonad modules
 homepage:            https://github.com/sgf-dma/sgf-xmonad-modules
@@ -30,6 +30,10 @@ library
                        Sgf.XMonad.Util.EntryHelper
                        Sgf.XMonad.Util.EZConfig
                        Sgf.XMonad.Workspaces
+                       Sgf.XMonad.Config
+                       Sgf.XMonad.Fullscreen
+                       Sgf.XMonad.Lock
+                       Sgf.XMonad.Pulse
   build-depends:       base
                      , mtl
                      , transformers
@@ -39,6 +43,7 @@ library
                      , containers
                      , process
                      , utf8-string
+                     , X11
                      , xmonad
                      , xmonad-contrib
                      , xmonad-entryhelper
