@@ -77,7 +77,7 @@ instance Monoid FocusHook where
 -- in ManageHooks before its own ManageHook (manageFocus). Thus, `handleFocus`
 -- should be the last function applied to XConfig to avoid incorrect focus
 -- changes.
-handleFocus :: LayoutClass l Window => Maybe (ButtonMask, KeySym)
+handleFocus :: Maybe (ButtonMask, KeySym)
                -> [FocusHook] -> XConfig l -> XConfig l
 handleFocus ml ps cf    = (additionalKeys <*> addLockKey ml) $ cf
     { manageHook    = manageFocus <+> manageHook cf

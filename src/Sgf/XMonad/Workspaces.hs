@@ -13,8 +13,7 @@ import qualified XMonad.StackSet as W
 
 import Sgf.Data.List
 
-handleDefaultWorkspaces :: LayoutClass l Window =>
-                              Bool -- Apply at startup?
+handleDefaultWorkspaces :: Bool -- Apply at startup?
                            -> (WorkspaceId -> Bool)
                            -> XConfig l -> XConfig l
 handleDefaultWorkspaces b p cf  = cf
