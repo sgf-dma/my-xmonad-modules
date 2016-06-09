@@ -27,7 +27,7 @@ import Sgf.XMonad.Util.EZConfig
 -- xmonad is started from (potentially) shared session (at least through vnc).
 -- But i may use different methods for sharing session, than VNC (e.g.
 -- x11vnc).
-handleVnc :: LayoutClass l Window => XConfig l -> IO (XConfig l)
+handleVnc :: XConfig l -> IO (XConfig l)
 handleVnc xcf       = do
     b <- isVnc
     if b

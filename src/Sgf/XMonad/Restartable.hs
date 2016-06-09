@@ -243,7 +243,7 @@ data ProgConfig l   = ProgConfig
                         }
 
 -- Create ProgConfig for RestartClass instance.
-addProg :: (RestartClass a, LayoutClass l Window) => a -> ProgConfig l
+addProg :: RestartClass a => a -> ProgConfig l
 addProg x           = ProgConfig
                         -- Create MaybeManageHook from program's ManageHook.
                         { progManageHook  = manageProg x
@@ -272,7 +272,7 @@ manageProg y        = liftX (getProcess y) >>= manageProcess (manageP y)
 
 -- Merge ProgConfig-s into existing XConfig properly and add key for showing
 -- program launch keys.
-handleProgs :: LayoutClass l Window => Maybe (ButtonMask, KeySym)
+handleProgs :: Maybe (ButtonMask, KeySym)
                -> [ProgConfig l] -> XConfig l -> XConfig l
 handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
     -- Run only one, matched program's ManageHook for any Window.  Program
