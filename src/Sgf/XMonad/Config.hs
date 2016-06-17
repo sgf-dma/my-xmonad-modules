@@ -152,6 +152,15 @@ layout              = tiled ||| Mirror tiled ||| Full
     slaves :: [Rational]
     slaves          = []
 
+-- Overwrite _NET_SUPPORTED inherited from display manager, because xmonad may
+-- not support all protocols specified there.
+resetNETSupported :: X ()
+resetNETSupported  = withDisplay $ \dpy -> do
+    r <- asks theRoot
+    a <- getAtom "_NET_SUPPORTED"
+    c <- getAtom "ATOM"
+    io $ changeProperty32 dpy r a c propModeReplace []
+
 defKeys :: XConfig l -> [((ButtonMask, KeySym), X ())]
 defKeys XConfig {modMask = m} =
       [ ((m,  xK_a), sendMessage MirrorShrink)
@@ -176,5 +185,6 @@ instance l ~ Choose ResizableTall (Choose (Mirror ResizableTall) Full) => Defaul
                         -- just throw away all arguments: at least it's safe..
                         , clickJustFocuses = False
                         , layoutHook = layout
+                        , startupHook = resetNETSupported
                         }
 
