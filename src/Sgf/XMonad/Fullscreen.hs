@@ -24,17 +24,17 @@ handleFullscreen cf = cf
     -- Note, the order in startupHook is important: `ewmh` function from
     -- XMonad.Hooks.EwmhDesktops also sets some atoms in _NET_SUPPORTED and
     -- uses 'propModeReplace'. Thus, it should be applied (if ever) *before*
-    -- to not overwrite fullscreen support.
+    -- to not overwrite my changes.
     , startupHook       = startupHook cf >> fullscreenStartupHook
     }
 
 -- Setting WMName adds two atoms '_NET_SUPPORTING_WM_CHECK' and '_NET_WM_NAME'
 -- to '_NET_SUPPORTED' and required for making youtube fullscreen work.
 fullscreenStartupHook :: X ()
-fullscreenStartupHook   = setSupportedFullscreen >> setWMName "xmonad"
+fullscreenStartupHook   = addWMFullscreenSupport >> setWMName "xmonad"
 
-setSupportedFullscreen :: X ()
-setSupportedFullscreen  = withDisplay $ \dpy -> do
+addWMFullscreenSupport :: X ()
+addWMFullscreenSupport  = withDisplay $ \dpy -> do
     r <- asks theRoot
     a <- getAtom "_NET_SUPPORTED"
     c <- getAtom "ATOM"
