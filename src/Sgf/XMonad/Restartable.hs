@@ -284,7 +284,14 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
                         liftIO $ threadDelay 300000
                         composeOne (map progManageHook ps) <+> manageHook cf
     -- Restart all programs at xmonad startup.
-    , startupHook   = mapM_ progStartupHook ps >> startupHook cf
+    -- Note, the order in startupHook is important: `ewmh` function from
+    -- XMonad.Hooks.EwmhDesktops also sets some atoms in _NET_SUPPORTED and
+    -- uses 'propModeReplace'. Thus, it should be applied (if ever) *before*
+    -- to not overwrite my changes.
+    , startupHook   = do
+                        mapM_ progStartupHook ps
+                        startupHook cf
+                        addWMPidSupport
     -- Log to all programs.
     , logHook       = mapM_ progLogHook ps >> logHook cf
     }
@@ -308,6 +315,13 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
                   )
                 ]
     addShowKey Nothing _ = []
+    addWMPidSupport :: X ()
+    addWMPidSupport = withDisplay $ \dpy -> do
+        r <- asks theRoot
+        a <- getAtom "_NET_SUPPORTED"
+        c <- getAtom "ATOM"
+        supp <- getAtom "_NET_WM_PID"
+        io $ changeProperty32 dpy r a c propModeAppend [fromIntegral supp]
 
 class Arguments a where
     serialize   :: MonadIO m => a -> m [String]
