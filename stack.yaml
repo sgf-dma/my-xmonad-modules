@@ -13,7 +13,9 @@ resolver: lts-5.5
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
-- location: extra-deps/sgf-haskell-common
+- location:
+    git: https://github.com/sgf-dma/sgf-haskell-common.git
+    commit: 2cf055533251b91a01bdb69b3d7436a142dffbda
   extra-dep: true
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
