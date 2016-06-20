@@ -127,6 +127,18 @@ instance Default (SessionConfig l) where
                         , focusLockKey      = Nothing
                         }
 
+-- Overwrite _NET_SUPPORTED inherited from display manager, because xmonad may
+-- not support all protocols specified there.
+resetNETSupported :: X ()
+resetNETSupported  = withDisplay $ \dpy -> do
+    r <- asks theRoot
+    a <- getAtom "_NET_SUPPORTED"
+    c <- getAtom "ATOM"
+    io $ changeProperty32 dpy r a c propModeReplace []
+
+handleEwmh :: XConfig l -> XConfig l
+handleEwmh xcf	    = xcf {startupHook = resetNETSupported >> startupHook xcf}
+
 session :: LayoutClass l Window => SessionConfig l -> XConfig l
            -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) (ModifiedLayout AvoidStruts l))
 session cf          =
@@ -135,6 +147,7 @@ session cf          =
       . handleFullscreen
       . handleRecompile
       . handlePulse
+      . handleEwmh
       . toXConfig cf
 
 
@@ -151,15 +164,6 @@ layout              = tiled ||| Mirror tiled ||| Full
     ratio           = 1/2
     slaves :: [Rational]
     slaves          = []
-
--- Overwrite _NET_SUPPORTED inherited from display manager, because xmonad may
--- not support all protocols specified there.
-resetNETSupported :: X ()
-resetNETSupported  = withDisplay $ \dpy -> do
-    r <- asks theRoot
-    a <- getAtom "_NET_SUPPORTED"
-    c <- getAtom "ATOM"
-    io $ changeProperty32 dpy r a c propModeReplace []
 
 defKeys :: XConfig l -> [((ButtonMask, KeySym), X ())]
 defKeys XConfig {modMask = m} =
@@ -185,6 +189,5 @@ instance l ~ Choose ResizableTall (Choose (Mirror ResizableTall) Full) => Defaul
                         -- just throw away all arguments: at least it's safe..
                         , clickJustFocuses = False
                         , layoutHook = layout
-                        , startupHook = resetNETSupported
                         }
 
