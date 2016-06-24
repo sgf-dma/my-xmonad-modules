@@ -10,6 +10,8 @@ module Sgf.XMonad.Focus
     , lockFocus
     , defaultFocusHook
     , handleFocus
+    , focusWindow
+    , shiftWin
     )
   where
 
@@ -91,7 +93,7 @@ handleFocus :: Maybe (ButtonMask, KeySym)
 handleFocus ml ps cf    = (additionalKeys <*> addLockKey ml) $ cf
     { manageHook    = manageFocus <+> manageHook cf
     , startupHook   = mapM_ addFocusHook ps >> startupHook cf
-    , handleEventHook = handleNetActive <+> handleEventHook cf
+    , handleEventHook = activateEventHook <+> handleEventHook cf
     }
   where
     addLockKey :: Maybe (ButtonMask, KeySym) -> XConfig l
@@ -134,8 +136,8 @@ manageActivate      = do
         b  = fromMaybe False (viewA lockFocus x)
     return (not b) <||> (not <$> onFocused False pf) --> pa
 
-handleNetActive :: Event -> X All
-handleNetActive ClientMessageEvent {
+activateEventHook :: Event -> X All
+activateEventHook ClientMessageEvent {
                     ev_window = w,
                     ev_message_type = mt
                 }   = do
@@ -144,9 +146,15 @@ handleNetActive ClientMessageEvent {
          f <- runQuery manageActivate w
          windows (appEndo f)
        return (All True)
-handleNetActive _   = return (All True)
+activateEventHook _   = return (All True)
 
 -- Toggle stored focus lock state.
 toggleLock :: X ()
 toggleLock      = XS.modify (modifyA lockFocus (not <$>))
+
+focusWindow :: ManageHook
+focusWindow         = ask >>= doF . W.focusWindow
+
+shiftWin :: WorkspaceId -> ManageHook
+shiftWin i          = ask >>= doF . W.shiftWin i
 
