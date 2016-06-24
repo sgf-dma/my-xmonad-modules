@@ -137,7 +137,7 @@ resetNETSupported  = withDisplay $ \dpy -> do
     io $ changeProperty32 dpy r a c propModeReplace []
 
 handleEwmh :: XConfig l -> XConfig l
-handleEwmh xcf	    = xcf {startupHook = resetNETSupported >> startupHook xcf}
+handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}
 
 session :: LayoutClass l Window => SessionConfig l -> XConfig l
            -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) (ModifiedLayout AvoidStruts l))
