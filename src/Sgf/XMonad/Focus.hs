@@ -14,6 +14,7 @@ module Sgf.XMonad.Focus
 
 import Data.Maybe
 import Data.Monoid
+import Control.Monad
 
 import XMonad
 import qualified XMonad.StackSet as W
@@ -39,12 +40,16 @@ onFocused b m       = liftX $
 data FocusHook      = FocusHook
                         { _focusedWindow    :: Query Bool
                         , _newWindow        :: Query Bool
+                        , _activatedWindow  :: ManageHook
                         , _lockFocus        :: Last  Bool
                         }
   deriving (Typeable)
 focusedWindow :: LensA FocusHook (Query Bool)
 focusedWindow f z@FocusHook {_focusedWindow = x}
                     = fmap (\x' -> z{_focusedWindow = x'}) (f x)
+activatedWindow :: LensA FocusHook ManageHook
+activatedWindow f z@FocusHook {_activatedWindow = x}
+                    = fmap (\x' -> z{_activatedWindow = x'}) (f x)
 newWindow :: LensA FocusHook (Query Bool)
 newWindow f z@FocusHook {_newWindow = x}
                     = fmap (\x' -> z{_newWindow = x'}) (f x)
@@ -56,6 +61,7 @@ lockFocus' f z@FocusHook {_lockFocus = x}
 defaultFocusHook :: FocusHook
 defaultFocusHook    = FocusHook
                         { _focusedWindow    = return False
+                        , _activatedWindow  = return (Endo id)
                         , _newWindow        = return False
                         , _lockFocus        = Last Nothing
                         }
@@ -67,6 +73,8 @@ instance ExtensionClass FocusHook where
 instance Monoid FocusHook where
     mempty          = defaultFocusHook
     x `mappend` y   = modifyA focusedWindow (<||> viewA focusedWindow y)
+                        . modifyA activatedWindow
+                            (`mappend` viewA activatedWindow y)
                         . modifyA newWindow (<||> viewA newWindow y)
                         . modifyA lockFocus' (`mappend` viewA lockFocus' y)
                         $ x
@@ -82,6 +90,7 @@ handleFocus :: Maybe (ButtonMask, KeySym)
 handleFocus ml ps cf    = (additionalKeys <*> addLockKey ml) $ cf
     { manageHook    = manageFocus <+> manageHook cf
     , startupHook   = mapM_ addFocusHook ps >> startupHook cf
+    , handleEventHook = handleNetActive <+> handleEventHook cf
     }
   where
     addLockKey :: Maybe (ButtonMask, KeySym) -> XConfig l
@@ -115,6 +124,26 @@ manageFocus         = do
         b  = fromMaybe False (viewA lockFocus x)
     return b <||> ((not <$> pn) <&&> onFocused False pf) -->
       ask >>= doF . focusDown
+
+manageActivate :: ManageHook
+manageActivate      = do
+    x <- liftX XS.get
+    let pf = viewA focusedWindow x
+        pa = viewA activatedWindow x
+        b  = fromMaybe False (viewA lockFocus x)
+    return (not b) <||> (not <$> onFocused False pf) --> pa
+
+handleNetActive :: Event -> X All
+handleNetActive ClientMessageEvent {
+                    ev_window = w,
+                    ev_message_type = mt
+                }   = do
+       a_aw <- getAtom "_NET_ACTIVE_WINDOW"
+       when (mt == a_aw) $ do
+         f <- runQuery manageActivate w
+         windows (appEndo f)
+       return (All True)
+handleNetActive _   = return (All True)
 
 -- Toggle stored focus lock state.
 toggleLock :: X ()
