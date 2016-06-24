@@ -92,7 +92,10 @@ handleFocus :: Maybe (ButtonMask, KeySym)
                -> [FocusHook] -> XConfig l -> XConfig l
 handleFocus ml ps cf    = (additionalKeys <*> addLockKey ml) $ cf
     { manageHook    = manageFocus <+> manageHook cf
-    , startupHook   = mapM_ addFocusHook ps >> startupHook cf
+    , startupHook   = do
+                        mapM_ addFocusHook ps
+                        startupHook cf
+                        addWMActivateSupport
     , handleEventHook = activateEventHook <+> handleEventHook cf
     }
   where
@@ -141,12 +144,18 @@ activateEventHook ClientMessageEvent {
                     ev_window = w,
                     ev_message_type = mt
                 }   = do
-       a_aw <- getAtom "_NET_ACTIVE_WINDOW"
-       when (mt == a_aw) $ do
-         f <- runQuery manageActivate w
-         windows (appEndo f)
-       return (All True)
+    a_aw <- getAtom "_NET_ACTIVE_WINDOW"
+    when (mt == a_aw) $ runQuery manageActivate w >>= windows . appEndo
+    return (All True)
 activateEventHook _   = return (All True)
+
+addWMActivateSupport :: X ()
+addWMActivateSupport  = withDisplay $ \dpy -> do
+    r <- asks theRoot
+    a <- getAtom "_NET_SUPPORTED"
+    c <- getAtom "ATOM"
+    supp <- getAtom "_NET_ACTIVE_WINDOW"
+    io $ changeProperty32 dpy r a c propModeAppend [fromIntegral supp]
 
 -- Toggle stored focus lock state.
 toggleLock :: X ()
