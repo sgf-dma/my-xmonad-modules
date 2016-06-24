@@ -6,6 +6,7 @@ module Sgf.XMonad.Focus
     , FocusHook
     , focusedWindow
     , newWindow
+    , activateWindow
     , lockFocus
     , defaultFocusHook
     , handleFocus
@@ -40,19 +41,19 @@ onFocused b m       = liftX $
 data FocusHook      = FocusHook
                         { _focusedWindow    :: Query Bool
                         , _newWindow        :: Query Bool
-                        , _activatedWindow  :: ManageHook
+                        , _activateWindow  :: ManageHook
                         , _lockFocus        :: Last  Bool
                         }
   deriving (Typeable)
 focusedWindow :: LensA FocusHook (Query Bool)
 focusedWindow f z@FocusHook {_focusedWindow = x}
                     = fmap (\x' -> z{_focusedWindow = x'}) (f x)
-activatedWindow :: LensA FocusHook ManageHook
-activatedWindow f z@FocusHook {_activatedWindow = x}
-                    = fmap (\x' -> z{_activatedWindow = x'}) (f x)
 newWindow :: LensA FocusHook (Query Bool)
 newWindow f z@FocusHook {_newWindow = x}
                     = fmap (\x' -> z{_newWindow = x'}) (f x)
+activateWindow :: LensA FocusHook ManageHook
+activateWindow f z@FocusHook {_activateWindow = x}
+                    = fmap (\x' -> z{_activateWindow = x'}) (f x)
 lockFocus :: LensA FocusHook (Maybe Bool)
 lockFocus           = lockFocus' . lastL
 lockFocus' :: LensA FocusHook (Last Bool)
@@ -61,8 +62,8 @@ lockFocus' f z@FocusHook {_lockFocus = x}
 defaultFocusHook :: FocusHook
 defaultFocusHook    = FocusHook
                         { _focusedWindow    = return False
-                        , _activatedWindow  = return (Endo id)
                         , _newWindow        = return False
+                        , _activateWindow  = return (Endo id)
                         , _lockFocus        = Last Nothing
                         }
 
@@ -73,8 +74,8 @@ instance ExtensionClass FocusHook where
 instance Monoid FocusHook where
     mempty          = defaultFocusHook
     x `mappend` y   = modifyA focusedWindow (<||> viewA focusedWindow y)
-                        . modifyA activatedWindow
-                            (`mappend` viewA activatedWindow y)
+                        . modifyA activateWindow
+                            (`mappend` viewA activateWindow y)
                         . modifyA newWindow (<||> viewA newWindow y)
                         . modifyA lockFocus' (`mappend` viewA lockFocus' y)
                         $ x
@@ -129,7 +130,7 @@ manageActivate :: ManageHook
 manageActivate      = do
     x <- liftX XS.get
     let pf = viewA focusedWindow x
-        pa = viewA activatedWindow x
+        pa = viewA activateWindow x
         b  = fromMaybe False (viewA lockFocus x)
     return (not b) <||> (not <$> onFocused False pf) --> pa
 
