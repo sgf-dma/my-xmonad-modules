@@ -6,14 +6,18 @@ module Sgf.XMonad.Focus
     , FocusHook
     , focusedWindow
     , newWindow
+    , activateWindow
     , lockFocus
     , defaultFocusHook
     , handleFocus
+    , focusWindow
+    , shiftWindow
     )
   where
 
 import Data.Maybe
 import Data.Monoid
+import Control.Monad
 
 import XMonad
 import qualified XMonad.StackSet as W
@@ -39,6 +43,7 @@ onFocused b m       = liftX $
 data FocusHook      = FocusHook
                         { _focusedWindow    :: Query Bool
                         , _newWindow        :: Query Bool
+                        , _activateWindow  :: ManageHook
                         , _lockFocus        :: Last  Bool
                         }
   deriving (Typeable)
@@ -48,6 +53,9 @@ focusedWindow f z@FocusHook {_focusedWindow = x}
 newWindow :: LensA FocusHook (Query Bool)
 newWindow f z@FocusHook {_newWindow = x}
                     = fmap (\x' -> z{_newWindow = x'}) (f x)
+activateWindow :: LensA FocusHook ManageHook
+activateWindow f z@FocusHook {_activateWindow = x}
+                    = fmap (\x' -> z{_activateWindow = x'}) (f x)
 lockFocus :: LensA FocusHook (Maybe Bool)
 lockFocus           = lockFocus' . lastL
 lockFocus' :: LensA FocusHook (Last Bool)
@@ -57,6 +65,7 @@ defaultFocusHook :: FocusHook
 defaultFocusHook    = FocusHook
                         { _focusedWindow    = return False
                         , _newWindow        = return False
+                        , _activateWindow  = return (Endo id)
                         , _lockFocus        = Last Nothing
                         }
 
@@ -67,6 +76,8 @@ instance ExtensionClass FocusHook where
 instance Monoid FocusHook where
     mempty          = defaultFocusHook
     x `mappend` y   = modifyA focusedWindow (<||> viewA focusedWindow y)
+                        . modifyA activateWindow
+                            (`mappend` viewA activateWindow y)
                         . modifyA newWindow (<||> viewA newWindow y)
                         . modifyA lockFocus' (`mappend` viewA lockFocus' y)
                         $ x
@@ -81,7 +92,11 @@ handleFocus :: Maybe (ButtonMask, KeySym)
                -> [FocusHook] -> XConfig l -> XConfig l
 handleFocus ml ps cf    = (additionalKeys <*> addLockKey ml) $ cf
     { manageHook    = manageFocus <+> manageHook cf
-    , startupHook   = mapM_ addFocusHook ps >> startupHook cf
+    , startupHook   = do
+                        mapM_ addFocusHook ps
+                        startupHook cf
+                        addWMActivateSupport
+    , handleEventHook = activateEventHook <+> handleEventHook cf
     }
   where
     addLockKey :: Maybe (ButtonMask, KeySym) -> XConfig l
@@ -116,7 +131,40 @@ manageFocus         = do
     return b <||> ((not <$> pn) <&&> onFocused False pf) -->
       ask >>= doF . focusDown
 
+manageActivate :: ManageHook
+manageActivate      = do
+    x <- liftX XS.get
+    let pf = viewA focusedWindow x
+        pa = viewA activateWindow x
+        b  = fromMaybe False (viewA lockFocus x)
+    return (not b) <&&> (not <$> onFocused False pf) --> pa
+
+activateEventHook :: Event -> X All
+activateEventHook ClientMessageEvent {
+                    ev_window = w,
+                    ev_message_type = mt
+                }   = do
+    a_aw <- getAtom "_NET_ACTIVE_WINDOW"
+    when (mt == a_aw) $ runQuery manageActivate w >>= windows . appEndo
+    return (All True)
+activateEventHook _   = return (All True)
+
+addWMActivateSupport :: X ()
+addWMActivateSupport  = withDisplay $ \dpy -> do
+    r <- asks theRoot
+    a <- getAtom "_NET_SUPPORTED"
+    c <- getAtom "ATOM"
+    supp <- getAtom "_NET_ACTIVE_WINDOW"
+    io $ changeProperty32 dpy r a c propModeAppend [fromIntegral supp]
+
 -- Toggle stored focus lock state.
 toggleLock :: X ()
 toggleLock      = XS.modify (modifyA lockFocus (not <$>))
+
+focusWindow :: ManageHook
+focusWindow         = ask >>= doF . W.focusWindow
+
+shiftWindow :: ManageHook
+--shiftWindow i       = ask >>= doF . W.shiftWin i
+shiftWindow         = ask >>= doF . (\w s -> W.shiftWin (W.currentTag s) w s)
 
