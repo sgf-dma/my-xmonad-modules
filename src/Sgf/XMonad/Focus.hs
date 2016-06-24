@@ -11,7 +11,7 @@ module Sgf.XMonad.Focus
     , defaultFocusHook
     , handleFocus
     , focusWindow
-    , shiftWin
+    , shiftWindow
     )
   where
 
@@ -164,6 +164,7 @@ toggleLock      = XS.modify (modifyA lockFocus (not <$>))
 focusWindow :: ManageHook
 focusWindow         = ask >>= doF . W.focusWindow
 
-shiftWin :: WorkspaceId -> ManageHook
-shiftWin i          = ask >>= doF . W.shiftWin i
+shiftWindow :: ManageHook
+--shiftWindow i       = ask >>= doF . W.shiftWin i
+shiftWindow         = ask >>= doF . (\w s -> W.shiftWin (W.currentTag s) w s)
 
