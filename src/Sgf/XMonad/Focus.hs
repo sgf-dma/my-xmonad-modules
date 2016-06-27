@@ -137,7 +137,7 @@ manageActivate      = do
     let pf = viewA focusedWindow x
         pa = viewA activateWindow x
         b  = fromMaybe False (viewA lockFocus x)
-    return (not b) <||> (not <$> onFocused False pf) --> pa
+    return (not b) <&&> (not <$> onFocused False pf) --> pa
 
 activateEventHook :: Event -> X All
 activateEventHook ClientMessageEvent {
