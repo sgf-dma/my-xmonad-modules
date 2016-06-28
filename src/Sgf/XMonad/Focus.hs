@@ -121,6 +121,30 @@ focusDown w ws
   | otherwise                   = ws
   where cw = W.currentTag ws
 
+-- Search for workspace, where new window appears, and set focus there to
+-- remembered previously focused window (if it is still there).
+keepFocus :: [(WorkspaceId, Maybe Window)] -> Window -> WindowSet -> WindowSet
+keepFocus cfs nw ws = fromMaybe ws $ do
+    i  <- W.findTag nw ws
+    cw <- join (lookup i cfs)
+    j  <- W.findTag cw ws
+    if i == j
+      then return (W.view (W.currentTag ws) . W.focusWindow cw $ ws)
+      else mzero
+
+-- ManageHook's pure function is computed in function 'manage` in
+-- XMonad/Operations.hs in still unmodified WindowSet (new window will be
+-- added later by default pure function, when it is applied by `windows`).
+-- Thus, i remember focused window for each workspace here and use this
+-- information in pure `keepFocus` function to preserve focus on workspace,
+-- where new window will appear (any workspace, not only current).
+keepFocusHook :: ManageHook
+keepFocusHook       = do
+    cfs <- liftX . withWindowSet $ return
+      . map (\w -> (W.tag w, W.focus <$> W.stack w))
+      . W.workspaces
+    ask >>= doF . keepFocus cfs
+
 -- ManageHook for switching (or not) focus.
 manageFocus :: ManageHook
 manageFocus         = do
@@ -128,8 +152,7 @@ manageFocus         = do
     let pf = viewA focusedWindow x
         pn = viewA newWindow x
         b  = fromMaybe False (viewA focusLock x)
-    return b <||> ((not <$> pn) <&&> onFocused False pf) -->
-      ask >>= doF . focusDown
+    return b <||> ((not <$> pn) <&&> onFocused False pf) --> keepFocusHook
 
 manageActivate :: ManageHook
 manageActivate      = do
