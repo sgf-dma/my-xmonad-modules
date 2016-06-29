@@ -7,7 +7,7 @@ module Sgf.XMonad.Focus
     , focusedWindow
     , newWindow
     , activateWindow
-    , lockFocus
+    , focusLock
     , defaultFocusHook
     , handleFocus
     , focusWindow
@@ -38,13 +38,13 @@ onFocused b m       = liftX $
 -- focusedWindow ManageHook will run on focused window and, if matched (True),
 -- will keep focus still. newWindow ManageHook will run on new window and, if
 -- matched, will overwrite focusedWindow result and shift focus to new window.
--- lockFocus will overwrite anything and just keep focus unchanged (Nothing
+-- focusLock will overwrite anything and just keep focus unchanged (Nothing
 -- means ignore, Just True - keep focus, Just False - change to new window).
 data FocusHook      = FocusHook
                         { _focusedWindow    :: Query Bool
                         , _newWindow        :: Query Bool
                         , _activateWindow  :: ManageHook
-                        , _lockFocus        :: Last  Bool
+                        , _focusLock        :: Last  Bool
                         }
   deriving (Typeable)
 focusedWindow :: LensA FocusHook (Query Bool)
@@ -56,22 +56,22 @@ newWindow f z@FocusHook {_newWindow = x}
 activateWindow :: LensA FocusHook ManageHook
 activateWindow f z@FocusHook {_activateWindow = x}
                     = fmap (\x' -> z{_activateWindow = x'}) (f x)
-lockFocus :: LensA FocusHook (Maybe Bool)
-lockFocus           = lockFocus' . lastL
-lockFocus' :: LensA FocusHook (Last Bool)
-lockFocus' f z@FocusHook {_lockFocus = x}
-                    = fmap (\x' -> z{_lockFocus = x'}) (f x)
+focusLock :: LensA FocusHook (Maybe Bool)
+focusLock           = focusLock' . lastL
+focusLock' :: LensA FocusHook (Last Bool)
+focusLock' f z@FocusHook {_focusLock = x}
+                    = fmap (\x' -> z{_focusLock = x'}) (f x)
 defaultFocusHook :: FocusHook
 defaultFocusHook    = FocusHook
                         { _focusedWindow    = return False
                         , _newWindow        = return False
                         , _activateWindow  = return (Endo id)
-                        , _lockFocus        = Last Nothing
+                        , _focusLock        = Last Nothing
                         }
 
 instance ExtensionClass FocusHook where
-    initialValue    = setA lockFocus (Just False) defaultFocusHook
--- Note, that i can't set lockFocus to Nothing using `mappend` once it is set
+    initialValue    = setA focusLock (Just False) defaultFocusHook
+-- Note, that i can't set focusLock to Nothing using `mappend` once it is set
 -- to Just.
 instance Monoid FocusHook where
     mempty          = defaultFocusHook
@@ -79,7 +79,7 @@ instance Monoid FocusHook where
                         . modifyA activateWindow
                             (`mappend` viewA activateWindow y)
                         . modifyA newWindow (<||> viewA newWindow y)
-                        . modifyA lockFocus' (`mappend` viewA lockFocus' y)
+                        . modifyA focusLock' (`mappend` viewA focusLock' y)
                         $ x
 
 -- Handle focus changes and add key for toggling focus lock. When handleFocus
@@ -127,7 +127,7 @@ manageFocus         = do
     x <- liftX XS.get
     let pf = viewA focusedWindow x
         pn = viewA newWindow x
-        b  = fromMaybe False (viewA lockFocus x)
+        b  = fromMaybe False (viewA focusLock x)
     return b <||> ((not <$> pn) <&&> onFocused False pf) -->
       ask >>= doF . focusDown
 
@@ -136,7 +136,7 @@ manageActivate      = do
     x <- liftX XS.get
     let pf = viewA focusedWindow x
         pa = viewA activateWindow x
-        b  = fromMaybe False (viewA lockFocus x)
+        b  = fromMaybe False (viewA focusLock x)
     return (not b) <&&> (not <$> onFocused False pf) --> pa
 
 activateEventHook :: Event -> X All
@@ -159,7 +159,7 @@ addWMActivateSupport  = withDisplay $ \dpy -> do
 
 -- Toggle stored focus lock state.
 toggleLock :: X ()
-toggleLock      = XS.modify (modifyA lockFocus (not <$>))
+toggleLock      = XS.modify (modifyA focusLock (not <$>))
 
 focusWindow :: ManageHook
 focusWindow         = ask >>= doF . W.focusWindow
