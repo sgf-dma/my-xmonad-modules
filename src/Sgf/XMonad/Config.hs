@@ -42,7 +42,7 @@ data SessionConfig l = SessionConfig
                         , docksToggleKey    :: Maybe (ButtonMask, KeySym)
                         , defaultWorkspacesAtStartup :: Bool
                         , defaultWorkspaces :: WorkspaceId -> Bool
-                        , focusHook         :: [FocusHook]
+                        , focusHook         :: FocusHook7
                         , focusLockKey      :: Maybe (ButtonMask, KeySym)
                         }
 toXConfig :: LayoutClass l Window => SessionConfig l -> XConfig l
@@ -50,7 +50,7 @@ toXConfig :: LayoutClass l Window => SessionConfig l -> XConfig l
 toXConfig          =
     let defWs   = handleDefaultWorkspaces
                     <$> defaultWorkspacesAtStartup  <*> defaultWorkspaces
-        fs      = handleFocus <$> focusLockKey      <*> focusHook
+        fs      = handleFocusQuery <$> focusLockKey <*> focusHook
         ps      = handleProgs <$> programHelpKey    <*> programs
         ds      = handleDocks <$> docksToggleKey
     in  ds <.> defWs <.> fs <.> ps
@@ -63,11 +63,11 @@ defFocusHook        = sequence [gmrunFocus, firefoxPassword]
     -- gmrun takes focus from others *and* keeps it.
     gmrunFocus :: FocusHook -> FocusHook
     gmrunFocus      = setA newWindow (className =? "Gmrun")
-                        . setA focusedWindow (className =? "Gmrun")
+                        . setA focusedWindowOld (className =? "Gmrun")
     -- Firefox dialog prompts (e.g. password manager prompt) keep focus
     -- (unless overwritten by e.g. gmrun).
     firefoxPassword :: FocusHook -> FocusHook
-    firefoxPassword = setA focusedWindow $
+    firefoxPassword = setA focusedWindowOld $
                         (className =? "Iceweasel" <||> className =? "Firefox")
                         <&&> isDialog
 
@@ -123,7 +123,7 @@ instance Default (SessionConfig l) where
                         , docksToggleKey    = Just (0, xK_b)
                         , defaultWorkspacesAtStartup = False
                         , defaultWorkspaces = (`elem` ["7"])
-                        , focusHook         = defFocusHook
+                        , focusHook         = return mempty
                         , focusLockKey      = Nothing
                         }
 
