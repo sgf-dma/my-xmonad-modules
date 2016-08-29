@@ -3,18 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Sgf.XMonad.Focus
-    ( onFocused
-    , FocusHook
-    , focusedWindowOld
-    , newWindow
-    , activateWindow
-    , focusLock
-    , defaultFocusHook
-    , handleFocus
-    , focusWindow
-    , shiftWindow
-
-    , Focus
+    ( Focus
     , newWorkspace
     , focusedWindow
     , currentWorkspace
@@ -55,15 +44,6 @@ import XMonad.Util.EZConfig (additionalKeys)
 import XMonad.Hooks.ManageHelpers (currentWs)
 
 import Sgf.Control.Lens
-
-
--- FIXME: Use local?
--- Helper for ManageHook: run Query on focused window (instead of new window),
--- and lift result into Query again (if there is no windows on current
--- workspace, return default result).
-onFocused :: a -> Query a -> Query a
-onFocused b m       = liftX $
-    withWindowSet (maybe (return b) (runQuery m) . W.peek)
 
 
 data Focus          = Focus
@@ -291,15 +271,6 @@ data FocusHook      = FocusHook
                         , _focusLock        :: Last  Bool
                         }
   deriving (Typeable)
-focusedWindowOld :: LensA FocusHook (Query Bool)
-focusedWindowOld f z@FocusHook {_focusedWindowOld = x}
-                    = fmap (\x' -> z{_focusedWindowOld = x'}) (f x)
-newWindow :: LensA FocusHook (Query Bool)
-newWindow f z@FocusHook {_newWindow = x}
-                    = fmap (\x' -> z{_newWindow = x'}) (f x)
-activateWindow :: LensA FocusHook ManageHook
-activateWindow f z@FocusHook {_activateWindow = x}
-                    = fmap (\x' -> z{_activateWindow = x'}) (f x)
 focusLock :: LensA FocusHook (Maybe Bool)
 focusLock           = focusLock' . lastL
 focusLock' :: LensA FocusHook (Last Bool)
@@ -315,106 +286,6 @@ defaultFocusHook    = FocusHook
 
 instance ExtensionClass FocusHook where
     initialValue    = setA focusLock (Just False) defaultFocusHook
--- Note, that i can't set focusLock to Nothing using `mappend` once it is set
--- to Just.
-instance Monoid FocusHook where
-    mempty          = defaultFocusHook
-    x `mappend` y   = modifyA focusedWindowOld (<||> viewA focusedWindowOld y)
-                        . modifyA activateWindow
-                            (`mappend` viewA activateWindow y)
-                        . modifyA newWindow (<||> viewA newWindow y)
-                        . modifyA focusLock' (`mappend` viewA focusLock' y)
-                        $ x
-
--- Handle focus changes and add key for toggling focus lock. When handleFocus
--- tries to keep focus still, it needs to know where new window will appear:
--- on current workspace or not. But it can detect window shifts only performed
--- in ManageHooks before its own ManageHook (manageFocusOld). Thus, `handleFocus`
--- should be the last function applied to XConfig to avoid incorrect focus
--- changes.
-handleFocus :: Maybe (ButtonMask, KeySym)
-               -> [FocusHook] -> XConfig l -> XConfig l
-handleFocus ml ps cf    = (additionalKeys <*> addLockKey ml) $ cf
-    { manageHook    = manageFocusOld <+> manageHook cf
-    , startupHook   = do
-                        mapM_ addFocusHook ps
-                        startupHook cf
-                        addWMActivateSupport
-    , handleEventHook = activateEventHookOld <+> handleEventHook cf
-    }
-  where
-    addLockKey :: Maybe (ButtonMask, KeySym) -> XConfig l
-                      -> [((ButtonMask, KeySym), X ())]
-    addLockKey (Just (mk, k)) XConfig{modMask = m} =
-                            [((m .|. mk, k), toggleLock)]
-    addLockKey Nothing _ =  []
-
--- Add new FocusHook to current stored FocusHook value.
-addFocusHook :: FocusHook -> X ()
-addFocusHook x      = XS.modify (x `mappend`)
-
--- Move focus down only, if specified window is on current workspace. This is
--- main ManageHook part for keeping focus still: if new window appeared on
--- current workspace, i need to move focus down; otherwise, if e.g. previous
--- ManageHook functions move new window to another workspace, i don't need to
--- shift focus. But for this to work, this function should be applied last in
--- ManageHook's function composition (Endo monoid).
-focusDown :: Window -> WindowSet -> WindowSet
-focusDown w ws
-  | W.findTag w ws == Just cw   = W.focusDown ws
-  | otherwise                   = ws
-  where cw = W.currentTag ws
-
--- Search for workspace, where new window appears, and set focus there to
--- remembered previously focused window (if it is still there).
-keepFocusOld :: [(WorkspaceId, Maybe Window)] -> Window -> WindowSet -> WindowSet
-keepFocusOld cfs nw ws = fromMaybe (W.view (W.currentTag ws) . W.focusWindow nw $ ws) $ do
-    i  <- W.findTag nw ws
-    cw <- join (lookup i cfs)
-    j  <- W.findTag cw ws
-    if i == j
-      then return (W.view (W.currentTag ws) . W.focusWindow cw $ ws)
-      else mzero
-
--- ManageHook's pure function is computed in function 'manage` in
--- XMonad/Operations.hs in still unmodified WindowSet (new window will be
--- added later by default pure function, when it is applied by `windows`).
--- Thus, i remember focused window for each workspace here and use this
--- information in pure `keepFocusOld` function to preserve focus on workspace,
--- where new window will appear (any workspace, not only current).
-keepFocusHook :: ManageHook
-keepFocusHook       = do
-    cfs <- liftX . withWindowSet $ return
-      . map (\w -> (W.tag w, W.focus <$> W.stack w))
-      . W.workspaces
-    ask >>= doF . keepFocusOld cfs
-
--- ManageHook for switching (or not) focus.
-manageFocusOld :: ManageHook
-manageFocusOld         = do
-    x <- liftX XS.get
-    let pf = viewA focusedWindowOld x
-        pn = viewA newWindow x
-        b  = fromMaybe False (viewA focusLock x)
-    return b <||> ((not <$> pn) <&&> onFocused False pf) --> keepFocusHook
-
-manageActivateOld :: ManageHook
-manageActivateOld      = do
-    x <- liftX XS.get
-    let pf = viewA focusedWindowOld x
-        pa = viewA activateWindow x
-        b  = fromMaybe False (viewA focusLock x)
-    return (not b) <&&> (not <$> onFocused False pf) --> pa
-
-activateEventHookOld :: Event -> X All
-activateEventHookOld ClientMessageEvent {
-                    ev_window = w,
-                    ev_message_type = mt
-                }   = do
-    a_aw <- getAtom "_NET_ACTIVE_WINDOW"
-    when (mt == a_aw) $ runQuery manageActivateOld w >>= windows . appEndo
-    return (All True)
-activateEventHookOld _   = return (All True)
 
 addWMActivateSupport :: X ()
 addWMActivateSupport  = withDisplay $ \dpy -> do
@@ -427,11 +298,4 @@ addWMActivateSupport  = withDisplay $ \dpy -> do
 -- Toggle stored focus lock state.
 toggleLock :: X ()
 toggleLock      = XS.modify (modifyA focusLock (not <$>))
-
-focusWindow :: ManageHook
-focusWindow         = ask >>= doF . W.focusWindow
-
-shiftWindow :: ManageHook
---shiftWindow i       = ask >>= doF . W.shiftWin i
-shiftWindow         = ask >>= doF . (\w s -> W.shiftWin (W.currentTag s) w s)
 
