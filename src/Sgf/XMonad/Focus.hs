@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Sgf.XMonad.Focus
@@ -8,6 +7,8 @@ module Sgf.XMonad.Focus
     , focusedWindow
     , currentWorkspace
     , netActivated
+    , FocusLock
+    , toggleLock
     , FocusQuery
     , runFocusQuery
     , FocusHook7
@@ -77,6 +78,15 @@ instance Default Focus where
                         , _currentWorkspace = ""
                         , _netActivated     = False
                         }
+
+newtype FocusLock   = FocusLock Bool
+  deriving (Show)
+instance ExtensionClass FocusLock where
+    initialValue    = FocusLock False
+
+-- Toggle stored focus lock state.
+toggleLock :: X ()
+toggleLock          = XS.modify (\(FocusLock b) -> FocusLock (not b))
 
 newtype FocusQuery a = FocusQuery (ReaderT Focus Query a)
 instance Functor FocusQuery where
@@ -203,8 +213,7 @@ keepFocus           = focused' $ ask >>= \w -> doF $ \ws ->
 -- (still no `keepWorkspace`) to overwrite default behavior.
 switchFocus :: FocusHook7
 switchFocus         = do
-    x <- liftQuery . liftX $ XS.get
-    let b = fromMaybe False (viewA focusLock x)
+    FocusLock b <- liftQuery . liftX $ XS.get
     if b
       then keepFocus
       else new $ ask >>= \w -> doF $ \ws ->
@@ -224,8 +233,7 @@ keepWorkspace       = do
 -- (still no `keepFocus`) to overwrite default behavior.
 switchWorkspace :: FocusHook7
 switchWorkspace     = do
-    x <- liftQuery . liftX $ XS.get
-    let b = fromMaybe False (viewA focusLock x)
+    FocusLock b <- liftQuery . liftX $ XS.get
     if b
       then keepWorkspace
       else do
@@ -257,36 +265,6 @@ handleFocusQuery ml x cf   = (additionalKeys <*> addLockKey ml) $ cf
                             [((m .|. mk, k), toggleLock)]
     addLockKey Nothing _ =  []
 
-
--- Should window focus be kept on current window or switched to new one:
--- focusedWindow ManageHook will run on focused window and, if matched (True),
--- will keep focus still. newWindow ManageHook will run on new window and, if
--- matched, will overwrite focusedWindow result and shift focus to new window.
--- focusLock will overwrite anything and just keep focus unchanged (Nothing
--- means ignore, Just True - keep focus, Just False - change to new window).
-data FocusHook      = FocusHook
-                        { _focusedWindowOld :: Query Bool
-                        , _newWindow        :: Query Bool
-                        , _activateWindow  :: ManageHook
-                        , _focusLock        :: Last  Bool
-                        }
-  deriving (Typeable)
-focusLock :: LensA FocusHook (Maybe Bool)
-focusLock           = focusLock' . lastL
-focusLock' :: LensA FocusHook (Last Bool)
-focusLock' f z@FocusHook {_focusLock = x}
-                    = fmap (\x' -> z{_focusLock = x'}) (f x)
-defaultFocusHook :: FocusHook
-defaultFocusHook    = FocusHook
-                        { _focusedWindowOld    = return False
-                        , _newWindow        = return False
-                        , _activateWindow  = return (Endo id)
-                        , _focusLock        = Last Nothing
-                        }
-
-instance ExtensionClass FocusHook where
-    initialValue    = setA focusLock (Just False) defaultFocusHook
-
 addWMActivateSupport :: X ()
 addWMActivateSupport  = withDisplay $ \dpy -> do
     r <- asks theRoot
@@ -294,8 +272,4 @@ addWMActivateSupport  = withDisplay $ \dpy -> do
     c <- getAtom "ATOM"
     supp <- getAtom "_NET_ACTIVE_WINDOW"
     io $ changeProperty32 dpy r a c propModeAppend [fromIntegral supp]
-
--- Toggle stored focus lock state.
-toggleLock :: X ()
-toggleLock      = XS.modify (modifyA focusLock (not <$>))
 
