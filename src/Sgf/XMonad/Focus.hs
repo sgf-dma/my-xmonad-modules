@@ -11,7 +11,7 @@ module Sgf.XMonad.Focus
     , toggleLock
     , FocusQuery
     , runFocusQuery
-    , FocusHook7
+    , FocusHook
     , liftQuery
     , new
     , focused
@@ -110,7 +110,7 @@ instance Monoid a => Monoid (FocusQuery a) where
 runFocusQuery :: FocusQuery a -> Focus -> Query a
 runFocusQuery (FocusQuery m)    = runReaderT m
 
-type FocusHook7     = FocusQuery (Endo WindowSet)
+type FocusHook      = FocusQuery (Endo WindowSet)
 
 -- Lifting into FocusQuery.
 --
@@ -169,9 +169,9 @@ activated           = asks (viewA netActivated)
 -- WindowSet) function i can't already execute monadic actions, because it's
 -- pure. So, i compute result for every workspace here and just use it later
 -- in (Endo WindowSet) function.  Note, though, that this will execute monadic
--- actions many times, and therefore assume, that result of FocusHook7 does
+-- actions many times, and therefore assume, that result of FocusHook does
 -- not depend on the number of times it was executed.
-manageFocus :: Focus -> FocusHook7 -> ManageHook
+manageFocus :: Focus -> FocusHook -> ManageHook
 manageFocus r m     = do
     fws <- liftX . withWindowSet $ return
       . map (W.tag &&& fmap W.focus . W.stack) . W.workspaces
@@ -190,7 +190,7 @@ manageFocus r m     = do
         f <- lookup i cfs
         return (appEndo f ws)
 
-manageActivate :: FocusHook7 -> ManageHook
+manageActivate :: FocusHook -> ManageHook
 manageActivate      = manageFocus (setA netActivated True def)
 
 -- Commonly used actions for modifying focus.
@@ -203,7 +203,7 @@ manageActivate      = manageFocus (setA netActivated True def)
 -- Workspace will not be switched. This operation is idempotent and
 -- effectively returns focus to window focused on that workspace before
 -- applying (Endo WindowSet) function.
-keepFocus :: FocusHook7
+keepFocus :: FocusHook
 keepFocus           = focused' $ ask >>= \w -> doF $ \ws ->
                         W.view (W.currentTag ws) . W.focusWindow w $ ws
 
@@ -211,7 +211,7 @@ keepFocus           = focused' $ ask >>= \w -> doF $ \ws ->
 -- window appears. Workspace will not be switched. This operation is
 -- idempotent. When focus lock is enabled, i explicitly call `keepFocus`
 -- (still no `keepWorkspace`) to overwrite default behavior.
-switchFocus :: FocusHook7
+switchFocus :: FocusHook
 switchFocus         = do
     FocusLock b <- liftQuery . liftX $ XS.get
     if b
@@ -222,7 +222,7 @@ switchFocus         = do
 -- Keep current workspace. Focus will not be changed at either current or new
 -- window's  workspace. This operation is idempotent and effectively switches
 -- to workspace, which was current before applying (Endo WindowSet) function.
-keepWorkspace :: FocusHook7
+keepWorkspace :: FocusHook
 keepWorkspace       = do
     ws <- asks (viewA currentWorkspace)
     liftQuery . doF $ W.view ws
@@ -231,7 +231,7 @@ keepWorkspace       = do
 -- changed at either current or new window's workspace. This operation is
 -- idempotent. When focus lock is enabled i explicitly call `keepWorkspace`
 -- (still no `keepFocus`) to overwrite default behavior.
-switchWorkspace :: FocusHook7
+switchWorkspace :: FocusHook
 switchWorkspace     = do
     FocusLock b <- liftQuery . liftX $ XS.get
     if b
@@ -240,7 +240,7 @@ switchWorkspace     = do
         ws <- asks (viewA newWorkspace)
         liftQuery . doF $ W.view ws
 
-activateEventHook :: FocusHook7 -> Event -> X All
+activateEventHook :: FocusHook -> Event -> X All
 activateEventHook x ClientMessageEvent {
                     ev_window = w,
                     ev_message_type = mt
@@ -250,7 +250,7 @@ activateEventHook x ClientMessageEvent {
     return (All True)
 activateEventHook _ _   = return (All True)
 
-handleFocusQuery :: Maybe (ButtonMask, KeySym) -> FocusHook7 -> XConfig l -> XConfig l
+handleFocusQuery :: Maybe (ButtonMask, KeySym) -> FocusHook -> XConfig l -> XConfig l
 handleFocusQuery ml x cf   = (additionalKeys <*> addLockKey ml) $ cf
     { manageHook        = manageFocus def x `mappend` manageHook cf
     , startupHook       = do
