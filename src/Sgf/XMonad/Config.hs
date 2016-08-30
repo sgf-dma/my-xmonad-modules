@@ -43,7 +43,7 @@ data SessionConfig l = SessionConfig
                         , docksToggleKey    :: Maybe (ButtonMask, KeySym)
                         , defaultWorkspacesAtStartup :: Bool
                         , defaultWorkspaces :: WorkspaceId -> Bool
-                        , focusHook         :: FocusHook7
+                        , focusHook         :: FocusHook
                         , focusLockKey      :: Maybe (ButtonMask, KeySym)
                         }
 toXConfig :: LayoutClass l Window => SessionConfig l -> XConfig l
@@ -56,10 +56,10 @@ toXConfig          =
         ds      = handleDocks <$> docksToggleKey
     in  ds <.> defWs <.> fs <.> ps
 
--- The order matters! Because `composeOne` returns the first FocusHook7, which
+-- The order matters! Because `composeOne` returns the first FocusHook, which
 -- won't be Nothing and does not try the others.
-defFocusHook7 :: FocusHook7
-defFocusHook7       = composeOne
+defFocusHook :: FocusHook
+defFocusHook        = composeOne
     -- Always switch focus to `gmrun`.
     [ new (className =? "Gmrun")        -?> switchFocus
     -- If `gmrun` or firefox dialog prompt (e.g. master password prompt) is
@@ -136,7 +136,7 @@ instance Default (SessionConfig l) where
                         , docksToggleKey    = Just (0, xK_b)
                         , defaultWorkspacesAtStartup = False
                         , defaultWorkspaces = (`elem` ["7"])
-                        , focusHook         = defFocusHook7
+                        , focusHook         = defFocusHook
                         , focusLockKey      = Nothing
                         }
 
