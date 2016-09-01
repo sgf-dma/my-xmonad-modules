@@ -34,6 +34,7 @@ library
                        Sgf.XMonad.Fullscreen
                        Sgf.XMonad.Lock
                        Sgf.XMonad.Pulse
+                       Sgf.XMonad.Hooks.ManageHelpers
   build-depends:       base
                      , mtl
                      , transformers

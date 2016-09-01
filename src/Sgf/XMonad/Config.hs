@@ -30,6 +30,7 @@ import Sgf.XMonad.Lock
 import Sgf.XMonad.Docks.Xmobar
 import Sgf.XMonad.Docks.Trayer
 import Sgf.XMonad.Restartable.Feh
+import Sgf.XMonad.Hooks.ManageHelpers
 
 
 (<.>) :: Applicative f => f (b -> c) -> f (a -> b) -> f (a -> c)
@@ -42,7 +43,7 @@ data SessionConfig l = SessionConfig
                         , docksToggleKey    :: Maybe (ButtonMask, KeySym)
                         , defaultWorkspacesAtStartup :: Bool
                         , defaultWorkspaces :: WorkspaceId -> Bool
-                        , focusHook         :: [FocusHook]
+                        , focusHook         :: FocusHook7
                         , focusLockKey      :: Maybe (ButtonMask, KeySym)
                         }
 toXConfig :: LayoutClass l Window => SessionConfig l -> XConfig l
@@ -50,27 +51,39 @@ toXConfig :: LayoutClass l Window => SessionConfig l -> XConfig l
 toXConfig          =
     let defWs   = handleDefaultWorkspaces
                     <$> defaultWorkspacesAtStartup  <*> defaultWorkspaces
-        fs      = handleFocus <$> focusLockKey      <*> focusHook
+        fs      = handleFocusQuery <$> focusLockKey <*> focusHook
         ps      = handleProgs <$> programHelpKey    <*> programs
         ds      = handleDocks <$> docksToggleKey
     in  ds <.> defWs <.> fs <.> ps
 
--- FocusHook-s for different programs.
-defFocusHook :: [FocusHook]
-defFocusHook        = sequence [gmrunFocus, firefoxPassword]
-                        defaultFocusHook
-  where
-    -- gmrun takes focus from others *and* keeps it.
-    gmrunFocus :: FocusHook -> FocusHook
-    gmrunFocus      = setA newWindow (className =? "Gmrun")
-                        . setA focusedWindow (className =? "Gmrun")
-    -- Firefox dialog prompts (e.g. password manager prompt) keep focus
-    -- (unless overwritten by e.g. gmrun).
-    firefoxPassword :: FocusHook -> FocusHook
-    firefoxPassword = setA focusedWindow $
-                        (className =? "Iceweasel" <||> className =? "Firefox")
-                        <&&> isDialog
-
+-- The order matters! Because `composeOne` returns the first FocusHook7, which
+-- won't be Nothing and does not try the others.
+defFocusHook7 :: FocusHook7
+defFocusHook7       = composeOne
+    -- Always switch focus to `gmrun`.
+    [ new (className =? "Gmrun")        -?> switchFocus
+    -- If `gmrun` or firefox dialog prompt (e.g. master password prompt) is
+    -- focused on current workspace and new window appears here too, keep
+    -- focus unchanged.
+    , newOnCur <&&> focused (foldr1 (<||>) 
+        [ className =? "Gmrun"
+        , (className =? "Iceweasel" <||> className =? "Firefox") <&&> isDialog
+        ])
+                                        -?> keepFocus
+    , activated -?> composeAll
+        -- If `gmrun` is focused on workspace, on which activated window is,
+        -- keep focus unchanged. I may still switch workspace there.
+        [ focused (className =? "Gmrun") --> keepFocus
+        -- If firefox window is activated, do not switch workspace. I may
+        -- still switch focus on that workspace.
+        , new (className =? "Iceweasel" <||> className =? "Firefox")
+                                         --> keepWorkspace
+        -- Default behavior for activated windows: switch workspace and focus.
+        , return True                    --> switchWorkspace <+> switchFocus
+        ]
+    -- Default behavior for new windows: switch focus.
+    , return True                       -?> switchFocus
+    ]
 
 defDocks :: [ProgConfig l]
 defDocks            = addDock trayer : map addDock [xmobar, xmobarAlt]
@@ -123,7 +136,7 @@ instance Default (SessionConfig l) where
                         , docksToggleKey    = Just (0, xK_b)
                         , defaultWorkspacesAtStartup = False
                         , defaultWorkspaces = (`elem` ["7"])
-                        , focusHook         = defFocusHook
+                        , focusHook         = defFocusHook7
                         , focusLockKey      = Nothing
                         }
 
