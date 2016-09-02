@@ -35,6 +35,7 @@ library
                        Sgf.XMonad.Lock
                        Sgf.XMonad.Pulse
                        Sgf.XMonad.Hooks.ManageHelpers
+                       Sgf.XMonad.X11
   build-depends:       base
                      , mtl
                      , transformers
