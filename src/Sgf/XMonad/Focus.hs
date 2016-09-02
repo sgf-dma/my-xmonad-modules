@@ -12,6 +12,8 @@ module Sgf.XMonad.Focus
     , FocusQuery
     , runFocusQuery
     , FocusHook
+
+    -- Lifting into FocusQuery.
     , liftQuery
     , new
     , focused
@@ -23,10 +25,18 @@ module Sgf.XMonad.Focus
     , newOn
     , newOnCur
     , activated
+
+    -- Commonly used actions for modifying focus.
     , keepFocus
     , switchFocus
     , keepWorkspace
     , switchWorkspace
+
+    -- Running FocusQuery.
+    , manageFocus
+    , manageActivate
+    , activateEventHook
+    , activateStartupHook
     , handleFocusQuery
     )
   where
@@ -43,6 +53,7 @@ import qualified XMonad.StackSet as W
 import qualified XMonad.Util.ExtensibleState as XS
 import XMonad.Util.EZConfig (additionalKeys)
 import XMonad.Hooks.ManageHelpers (currentWs)
+import XMonad.Hooks.SetWMName
 
 import Sgf.Control.Lens
 
@@ -253,9 +264,7 @@ activateEventHook _ _   = return (All True)
 handleFocusQuery :: Maybe (ButtonMask, KeySym) -> FocusHook -> XConfig l -> XConfig l
 handleFocusQuery ml x cf   = (additionalKeys <*> addLockKey ml) $ cf
     { manageHook        = manageFocus def x `mappend` manageHook cf
-    , startupHook       = do
-                            startupHook cf
-                            addWMActivateSupport
+    , startupHook       = startupHook cf >> activateStartupHook
     , handleEventHook   = activateEventHook x `mappend` handleEventHook cf
     }
   where
@@ -264,6 +273,18 @@ handleFocusQuery ml x cf   = (additionalKeys <*> addLockKey ml) $ cf
     addLockKey (Just (mk, k)) XConfig{modMask = m} =
                             [((m .|. mk, k), toggleLock)]
     addLockKey Nothing _ =  []
+
+-- `setWMName` creates support window (don't know why), sets its _NET_WM_NAME
+-- to specified value, sets '_NET_SUPPORTING_WM_CHECK' atom of support window
+-- and root window to support window id and and adds two atoms
+-- '_NET_SUPPORTING_WM_CHECK' and '_NET_WM_NAME' to '_NET_SUPPORTED' atom of
+-- root window (removing any duplicates). And this is required (apart from
+-- adding '_NET_ACTIVE_WINDOW' to '_NET_SUPPORTED') for making
+-- window activation work. Also, `setWMName` checks window pointed by
+-- '_NET_SUPPORTING_WM_CHECK' before creating support window, so it's safe to
+-- call it many times - only window name in '_NET_WM_NAME' may change.
+activateStartupHook :: X ()
+activateStartupHook   = setWMName "xmonad" >> addWMActivateSupport
 
 addWMActivateSupport :: X ()
 addWMActivateSupport  = withDisplay $ \dpy -> do
