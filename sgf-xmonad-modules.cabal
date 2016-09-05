@@ -39,6 +39,7 @@ library
   build-depends:       base
                      , mtl
                      , transformers
+                     , tagged
                      , filepath
                      , directory
                      , unix
