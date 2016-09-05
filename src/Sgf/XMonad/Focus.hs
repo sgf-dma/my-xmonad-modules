@@ -162,9 +162,9 @@ focusedOn' i m      = liftQuery $ do
 -- workspace, while the last will affect any window: focus even for windows
 -- appearing on other workpsaces will depend on focus on *current* workspace.
 focusedCur :: Query Bool -> FocusQuery Bool
-focusedCur m        = liftQuery currentWs >>= \i -> focusedOn i m
+focusedCur m        = asks (viewA currentWorkspace) >>= \i -> focusedOn i m
 focusedCur' :: Monoid a => Query a -> FocusQuery a
-focusedCur' m       = liftQuery currentWs >>= \i -> focusedOn' i m
+focusedCur' m       = asks (viewA currentWorkspace) >>= \i -> focusedOn' i m
 
 -- Does new window appear at particular workspace?
 newOn :: WorkspaceId -> FocusQuery Bool
