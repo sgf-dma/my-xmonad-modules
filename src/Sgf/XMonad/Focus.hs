@@ -137,9 +137,7 @@ new                 = liftQuery
 -- Run Query on focused window on workspace, where new window appears. If
 -- there is no focused window, return False.
 focused :: Query Bool -> FocusQuery Bool
-focused m           = do
-    mw <- asks (viewA focusedWindow)
-    liftQuery (maybe (return False) (flip local m . const) mw)
+focused m           = getAny <$> focused' (Any <$> m)
 focused' :: Monoid a => Query a -> FocusQuery a
 focused' m          = do
     mw <- asks (viewA focusedWindow)
@@ -148,9 +146,7 @@ focused' m          = do
 -- Run Query on window focused at particular workspace. If there is no focused
 -- window, return False.
 focusedOn :: WorkspaceId -> Query Bool -> FocusQuery Bool
-focusedOn i m       = liftQuery $ do
-    mw <- liftX $ withWindowSet (return . W.peek . W.view i)
-    maybe (return False) (flip local m . const) mw
+focusedOn i m       = getAny <$> focusedOn' i (Any <$> m)
 focusedOn' :: Monoid a => WorkspaceId -> Query a -> FocusQuery a
 focusedOn' i m      = liftQuery $ do
     mw <- liftX $ withWindowSet (return . W.peek . W.view i)
@@ -162,7 +158,7 @@ focusedOn' i m      = liftQuery $ do
 -- workspace, while the last will affect any window: focus even for windows
 -- appearing on other workpsaces will depend on focus on *current* workspace.
 focusedCur :: Query Bool -> FocusQuery Bool
-focusedCur m        = asks (viewA currentWorkspace) >>= \i -> focusedOn i m
+focusedCur m        = getAny <$> focusedCur' (Any <$> m)
 focusedCur' :: Monoid a => Query a -> FocusQuery a
 focusedCur' m       = asks (viewA currentWorkspace) >>= \i -> focusedOn' i m
 
