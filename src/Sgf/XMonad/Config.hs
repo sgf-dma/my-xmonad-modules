@@ -58,6 +58,8 @@ toXConfig          =
         fs      = handleFocusQuery <$> focusLockKey <*> focusHook
         ps      = handleProgs <$> programHelpKey    <*> programs
         ds      = handleDocks <$> docksToggleKey
+	-- `handleProgs` may change new window placement, so i should apply
+	-- `handleFocusQuery` after it.
     in  ds <.> defWs <.> fs <.> ps
 
 -- The order matters! Because `composeOne` returns the first FocusHook, which
