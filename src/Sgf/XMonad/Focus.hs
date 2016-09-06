@@ -45,7 +45,6 @@ import Data.Maybe
 import Data.Monoid
 import Control.Monad
 import Control.Monad.Reader
--- FIXME: Hide <+> in XMonad instead!
 import Control.Arrow hiding ((<+>))
 
 import XMonad
@@ -59,6 +58,79 @@ import Sgf.Control.Lens
 import Sgf.XMonad.X11
 
 
+-- This module provides monad on top of Query monad providing additional
+-- information about new window:
+--  - workspace, where new window will appear;
+--  - focused window on workspace, where new window will appear;
+--  - current workspace;
+--  - was new window _NET_ACTIVE_WINDOW activated or not (it will not be new
+--  in that case, but i may work with it in the same way).
+--
+-- Lifting operations for standard ManageHook EDSL combinators into FocusQuery
+-- monad allowing to run these combinators on focused window and common
+-- actions for keeping focus and/or workspace, switching focus and/or
+-- workspace are also provided.
+--
+-- To use this module with default FocusHook and `mod + v` for toggling focus
+-- lock (when enabled, focus will not be switched to new window):
+--
+--      import XMonad
+--
+--      import Data.Tagged (witness)
+--
+--      import Sgf.XMonad.Config (SessionConfig)
+--      import Sgf.XMonad.Focus
+--
+--      main :: IO ()
+--      main = do
+--              let xcf = handleFocusQuery (Just (0, xK_v)) (witness def (def :: SessionConfig a)) def
+--              xmonad xcf
+--
+-- Note, that `handleFocusQuery` will enable window activation.
+--
+-- I may define my own FocusHook. For that i need more generic (-?>) and
+-- `composeOne`, than ones defined in X.H.ManagerHelpers, though:
+--
+--      import Sgf.XMonad.Hooks.ManageHelpers
+--
+--      fh :: FocusHook
+--      fh = composeOne
+--              -- Always switch focus to `gmrun`.
+--              [ new (className =? "Gmrun")
+--                                      -?> switchFocus
+--              -- If `gmrun` is focused on current workspace and new window
+--              -- appears here too, keep focus unchanged.
+--              , newOnCur <&&> focused (className =? "Gmrun")
+--                                      -?> keepFocus
+--              , activated -?> composeAll
+--                  -- If `gmrun` is focused on workspace, on which
+--                  -- activated window is, keep focus unchanged. I may
+--                  -- still switch workspace there.
+--                  [ focused (className =? "Gmrun")
+--                                      --> keepFocus
+--                  -- If firefox window is activated, do not switch
+--                  -- workspace. I may still switch focus on that
+--                  -- workspace.
+--                  , new (className =? "Iceweasel" <||> className =? "Firefox")
+--                                      --> keepWorkspace
+--                  -- Default behavior for activated windows: switch
+--                  -- workspace and focus.
+--                  , return True       --> switchWorkspace <+> switchFocus
+--                  ]
+--              -- Default behavior for new windows: switch focus.
+--              , return True           -?> switchFocus
+--              ]
+--
+-- I may define my own `handleFocusQuery` too.
+--
+-- Note, that FocusHook will run *many* times, so it must not keep state or
+-- save results. I.e. it must be idempotent to operate properly.
+--
+-- Note, that FocusHook will see new window at workspace, where functions on
+-- the *right* from `handleFocusQuery` in ManageHook monoid place it.  In
+-- other words, in `Endo WindowSet` monoid i may see changes only from
+-- functions applied before (more to the right in function composition). Thus,
+-- it's better to apply `handleFocusQuery` the last.
 data Focus          = Focus
                         -- Workspace, where new window appears.
                         { _newWorkspace     :: WorkspaceId
@@ -258,7 +330,9 @@ activateEventHook x ClientMessageEvent {
     return (All True)
 activateEventHook _ _   = return (All True)
 
-handleFocusQuery :: Maybe (ButtonMask, KeySym) -> FocusHook -> XConfig l -> XConfig l
+handleFocusQuery :: Maybe (ButtonMask, KeySym)  -- Key to toggle focus lock.
+                    -> FocusHook
+                    -> XConfig l -> XConfig l
 handleFocusQuery ml x cf   = (additionalKeys <*> addLockKey ml) $ cf
     { manageHook        = manageFocus def x `mappend` manageHook cf
     , startupHook       = startupHook cf >> activateStartupHook
