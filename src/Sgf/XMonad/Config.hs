@@ -31,6 +31,7 @@ import Sgf.XMonad.Docks.Xmobar
 import Sgf.XMonad.Docks.Trayer
 import Sgf.XMonad.Restartable.Feh
 import Sgf.XMonad.Hooks.ManageHelpers
+import Sgf.XMonad.X11
 
 
 (<.>) :: Applicative f => f (b -> c) -> f (a -> b) -> f (a -> c)
@@ -139,15 +140,6 @@ instance Default (SessionConfig l) where
                         , focusHook         = defFocusHook
                         , focusLockKey      = Nothing
                         }
-
--- Overwrite _NET_SUPPORTED inherited from display manager, because xmonad may
--- not support all protocols specified there.
-resetNETSupported :: X ()
-resetNETSupported  = withDisplay $ \dpy -> do
-    r <- asks theRoot
-    a <- getAtom "_NET_SUPPORTED"
-    c <- getAtom "ATOM"
-    io $ changeProperty32 dpy r a c propModeReplace []
 
 handleEwmh :: XConfig l -> XConfig l
 handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}

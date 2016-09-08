@@ -56,6 +56,7 @@ import XMonad.Hooks.ManageHelpers (currentWs)
 import XMonad.Hooks.SetWMName
 
 import Sgf.Control.Lens
+import Sgf.XMonad.X11
 
 
 data Focus          = Focus
@@ -284,13 +285,7 @@ handleFocusQuery ml x cf   = (additionalKeys <*> addLockKey ml) $ cf
 -- '_NET_SUPPORTING_WM_CHECK' before creating support window, so it's safe to
 -- call it many times - only window name in '_NET_WM_NAME' may change.
 activateStartupHook :: X ()
-activateStartupHook   = setWMName "xmonad" >> addWMActivateSupport
-
-addWMActivateSupport :: X ()
-addWMActivateSupport  = withDisplay $ \dpy -> do
-    r <- asks theRoot
-    a <- getAtom "_NET_SUPPORTED"
-    c <- getAtom "ATOM"
-    supp <- getAtom "_NET_ACTIVE_WINDOW"
-    io $ changeProperty32 dpy r a c propModeAppend [fromIntegral supp]
+activateStartupHook = do
+                        setWMName "xmonad"
+                        getAtom "_NET_ACTIVE_WINDOW" >>= addNETSupported
 
