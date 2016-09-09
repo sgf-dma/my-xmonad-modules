@@ -13,6 +13,7 @@ import Data.Tagged
 import Control.Applicative
 
 import XMonad
+import qualified XMonad.StackSet as W
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Hooks.ManageDocks (AvoidStruts)
 import XMonad.Layout.NoBorders
@@ -49,6 +50,9 @@ data SessionConfig l = SessionConfig
                         , defaultWorkspaces :: WorkspaceId -> Bool
                         , focusHook         :: FocusHook
                         , focusLockKey      :: Maybe (ButtonMask, KeySym)
+                        , lockWorkspace     :: WorkspaceId
+                        , anotherWorkspace  :: WindowSet -> WorkspaceId
+                        , lockKey           :: Maybe (ButtonMask, KeySym)
                         }
 toXConfig :: LayoutClass l Window => SessionConfig l -> XConfig l
              -> XConfig (ModifiedLayout AvoidStruts l)
@@ -58,9 +62,10 @@ toXConfig          =
         fs      = handleFocusQuery <$> focusLockKey <*> focusHook
         ps      = handleProgs <$> programHelpKey    <*> programs
         ds      = handleDocks <$> docksToggleKey
-        -- `handleProgs` may change new window placement, so i should apply
-        -- `handleFocusQuery` after it.
-    in  ds <.> defWs <.> fs <.> pure handleLock <.> ps
+        ls      = handleLock  <$> lockKey <*> lockWorkspace <*> anotherWorkspace
+        -- `handleProgs` and `handleLock` may change new window placement, so
+        -- i should apply `handleFocusQuery` after it.
+    in  ds <.> defWs <.> fs <.> ls <.> ps
 
 instance Default (Tagged (SessionConfig l) FocusHook) where
     -- The order matters! Because `composeOne` returns the first FocusHook,
@@ -144,6 +149,12 @@ instance Default (SessionConfig l) where
             , defaultWorkspaces = (`elem` ["7"])
             , focusHook         = witness def (def :: SessionConfig a)
             , focusLockKey      = Nothing
+            , lockWorkspace     = "lock"
+            -- Choose most recently viewed workspace to place new window moved
+            -- out from lock workspace.
+            , anotherWorkspace  = head . filter (/= lockWorkspace def)
+                                    . map W.tag . W.workspaces
+            , lockKey           = Just (shiftMask, xK_z)
             }
 
 handleEwmh :: XConfig l -> XConfig l

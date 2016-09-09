@@ -131,6 +131,28 @@ import Sgf.XMonad.X11
 -- other words, in `Endo WindowSet` monoid i may see changes only from
 -- functions applied before (more to the right in function composition). Thus,
 -- it's better to apply `handleFocusQuery` the last.
+--
+-- Moreover, FocusHook functions won't see window shift to another workspace
+-- made by function from FocusHook itself: new window workspace is determined
+-- *before* running FocusHook and even if later one of FocusHook functions
+-- moves window to another workspace, predicates (`focused`, `newOn`, etc)
+-- will still think new window is at workspace it was before. The reason is
+-- how `manageFocus` works and can be fixed only by splitting FocusHook into
+-- several different values and evaluating each one separately: make first
+-- FocusHook, which may move window to another workspace, and evaluate it to
+-- ManageHook by `manageFocus`. E.g. lock workspace implementation does this
+-- for moving new windows out of lock workspace:
+--
+--      manageFocus def (newOn lockWs --> moveTo anotherWs)
+--
+--
+-- Then make second FocusHook, which will (now) see results of first one, and
+-- process further. E.g. regular `handleFocusQuery` should run after lock
+-- workspace ManageHook, because the latter may change new window workspace:
+--
+--      handleFocusQuery .. <+> handleLock ..
+--
+
 data Focus          = Focus
                         -- Workspace, where new window appears.
                         { _newWorkspace     :: WorkspaceId
