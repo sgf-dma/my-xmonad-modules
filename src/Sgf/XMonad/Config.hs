@@ -58,13 +58,13 @@ toXConfig          =
         fs      = handleFocusQuery <$> focusLockKey <*> focusHook
         ps      = handleProgs <$> programHelpKey    <*> programs
         ds      = handleDocks <$> docksToggleKey
-	-- `handleProgs` may change new window placement, so i should apply
-	-- `handleFocusQuery` after it.
-    in  ds <.> defWs <.> fs <.> ps
+        -- `handleProgs` may change new window placement, so i should apply
+        -- `handleFocusQuery` after it.
+    in  ds <.> defWs <.> fs <.> pure handleLock <.> ps
 
--- The order matters! Because `composeOne` returns the first FocusHook, which
--- won't be Nothing and does not try the others.
 instance Default (Tagged (SessionConfig l) FocusHook) where
+    -- The order matters! Because `composeOne` returns the first FocusHook,
+    -- which won't be Nothing and does not try the others.
     def = Tagged $ composeOne
             -- Always switch focus to `gmrun`.
             [ new (className =? "Gmrun")    -?> switchFocus
@@ -152,9 +152,7 @@ handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}
 session :: LayoutClass l Window => SessionConfig l -> XConfig l
            -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) (ModifiedLayout AvoidStruts l))
 session cf          =
-    -- Since `handleLock` modifies workspaces, its better to apply it last.
-    handleLock
-      . handleFullscreen
+    handleFullscreen
       . handleRecompile
       . handlePulse
       . handleEwmh
