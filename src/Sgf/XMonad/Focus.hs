@@ -54,7 +54,6 @@ import XMonad.Util.EZConfig (additionalKeys)
 import XMonad.Hooks.ManageHelpers (currentWs)
 import XMonad.Hooks.SetWMName
 
-import Sgf.Control.Lens
 import Sgf.XMonad.X11
 
 
@@ -155,34 +154,22 @@ import Sgf.XMonad.X11
 
 data Focus          = Focus
                         -- Workspace, where new window appears.
-                        { _newWorkspace     :: WorkspaceId
+                        { newWorkspace      :: WorkspaceId
                         -- Focused window on workspace, where new window
                         -- appears.
-                        , _focusedWindow    :: Maybe Window
+                        , focusedWindow     :: Maybe Window
                         -- Current workspace.
-                        , _currentWorkspace :: WorkspaceId
+                        , currentWorkspace  :: WorkspaceId
                         -- Whether new window _NET_ACTIVE_WINDOW activated?
-                        , _netActivated     :: Bool
+                        , netActivated      :: Bool
                         }
   deriving (Show)
-newWorkspace :: LensA Focus WorkspaceId
-newWorkspace f z@Focus {_newWorkspace = x}
-                    = fmap (\x' -> z{_newWorkspace = x'}) (f x)
-focusedWindow :: LensA Focus (Maybe Window)
-focusedWindow f z@Focus {_focusedWindow = x}
-                    = fmap (\x' -> z{_focusedWindow = x'}) (f x)
-currentWorkspace :: LensA Focus WorkspaceId
-currentWorkspace f z@Focus {_currentWorkspace = x}
-                    = fmap (\x' -> z{_currentWorkspace = x'}) (f x)
-netActivated :: LensA Focus Bool
-netActivated f z@Focus {_netActivated = x}
-                    = fmap (\x' -> z{_netActivated = x'}) (f x)
 instance Default Focus where
     def             = Focus
-                        { _focusedWindow    = Nothing
-                        , _newWorkspace     = ""
-                        , _currentWorkspace = ""
-                        , _netActivated     = False
+                        { focusedWindow     = Nothing
+                        , newWorkspace      = ""
+                        , currentWorkspace  = ""
+                        , netActivated      = False
                         }
 
 newtype FocusLock   = FocusLock Bool
@@ -234,7 +221,7 @@ focused :: Query Bool -> FocusQuery Bool
 focused m           = getAny <$> focused' (Any <$> m)
 focused' :: Monoid a => Query a -> FocusQuery a
 focused' m          = do
-    mw <- asks (viewA focusedWindow)
+    mw <- asks focusedWindow
     liftQuery (maybe mempty (flip local m . const) mw)
 
 -- Run Query on window focused at particular workspace. If there is no focused
@@ -254,17 +241,17 @@ focusedOn' i m      = liftQuery $ do
 focusedCur :: Query Bool -> FocusQuery Bool
 focusedCur m        = getAny <$> focusedCur' (Any <$> m)
 focusedCur' :: Monoid a => Query a -> FocusQuery a
-focusedCur' m       = asks (viewA currentWorkspace) >>= \i -> focusedOn' i m
+focusedCur' m       = asks currentWorkspace >>= \i -> focusedOn' i m
 
 -- Does new window appear at particular workspace?
 newOn :: WorkspaceId -> FocusQuery Bool
-newOn i             = (i ==) <$> asks (viewA newWorkspace)
+newOn i             = (i ==) <$> asks newWorkspace
 newOnCur :: FocusQuery Bool
-newOnCur            = asks (viewA currentWorkspace) >>= newOn
+newOnCur            = asks currentWorkspace >>= newOn
 
 -- Does new window  _NET_ACTIVE_WINDOW activated?
 activated :: FocusQuery Bool
-activated           = asks (viewA netActivated)
+activated           = asks netActivated
 
 -- I don't know on which workspace new window will appear until i actually run
 -- (Endo WindowSet) function (in `windows` in XMonad.Operations), but in (Endo
@@ -278,9 +265,9 @@ manageFocus r m     = do
     fws <- liftX . withWindowSet $ return
       . map (W.tag &&& fmap W.focus . W.stack) . W.workspaces
     ct  <- currentWs
-    let r' = setA currentWorkspace ct r
+    let r' = r {currentWorkspace = ct}
     hs <- forM fws $ \(i, mw) -> do
-      f <- runFocusQuery m (setA focusedWindow mw . setA newWorkspace i $ r')
+      f <- runFocusQuery m (r' {focusedWindow = mw, newWorkspace = i})
       return (i, f)
     reader (selectHook hs) >>= doF
   where
@@ -293,7 +280,7 @@ manageFocus r m     = do
         return (appEndo f ws)
 
 manageActivate :: FocusHook -> ManageHook
-manageActivate      = manageFocus (setA netActivated True def)
+manageActivate      = manageFocus (def {netActivated = True})
 
 -- Commonly used actions for modifying focus.
 --
@@ -326,7 +313,7 @@ switchFocus         = do
 -- to workspace, which was current before applying (Endo WindowSet) function.
 keepWorkspace :: FocusHook
 keepWorkspace       = do
-    ws <- asks (viewA currentWorkspace)
+    ws <- asks currentWorkspace
     liftQuery . doF $ W.view ws
 
 -- Switch workspace to one, where new window appears. Focus will not be
@@ -339,7 +326,7 @@ switchWorkspace     = do
     if b
       then keepWorkspace
       else do
-        ws <- asks (viewA newWorkspace)
+        ws <- asks newWorkspace
         liftQuery . doF $ W.view ws
 
 activateEventHook :: FocusHook -> Event -> X All
