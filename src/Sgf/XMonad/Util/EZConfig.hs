@@ -2,15 +2,18 @@
 module Sgf.XMonad.Util.EZConfig
     ( mapKeys
     , addModMask
+    , maybeKey
     , additionalKeys'
     , appendKeys
     )
   where
 
+import Data.Maybe
 import Control.Arrow
 import qualified Data.Map as M
 
 import XMonad
+import XMonad.Util.EZConfig
 
 -- Map function over keys's Map .
 mapKeys :: (M.Map (ButtonMask, KeySym) (X ()) -> M.Map (ButtonMask, KeySym) (X ()))
@@ -24,17 +27,19 @@ addModMask :: (ButtonMask -> ButtonMask)
                      -> M.Map (ButtonMask, KeySym) (X ())
 addModMask f xs     = xs `M.union` M.mapKeys (first f) xs
 
--- Variant of additionalKeys, which appends new key definition to the existing
--- one instead of overwriting it. That means, that single key will executing
--- both old and new actions.
-additionalKeys' :: XConfig a -> [((ButtonMask, KeySym), X ())] -> XConfig a
-additionalKeys' xcf ys  = xcf { keys = M.unionWith (>>) (M.fromList ys)
-                                        . keys xcf
-                              }
+-- Helper function for use in `additinalKeys <*> mt `maybeKey` x` , where
+-- `mt :: Maybe (ButtonMask, KeySym)` and `x :: X ()` .
+maybeKey :: Maybe (ButtonMask, KeySym) -> X () -> XConfig l -> [((ButtonMask, KeySym), X ())]
+maybeKey mk x       = pure . maybeToList $ (mk >>= \k -> return (k, x))
 
--- Merge values for the same key (ButtonMask, KeySym) in the list. I may need
--- this, because if list contains several values for the same key, `fromList`
--- will overwrite previous value with the last one, when constructing Map.
-appendKeys :: [((ButtonMask, KeySym), X())] -> [((ButtonMask, KeySym), X ())]
-appendKeys          = M.toList . foldr (uncurry (M.insertWith (>>))) M.empty
+-- Variant of additionalKeys, which adds modMask to key's ButtonMask,
+additionalKeys' :: XConfig a -> [((ButtonMask, KeySym), X ())] -> XConfig a
+additionalKeys' xcf@XConfig{modMask = m} =
+                        additionalKeys xcf . map (first . first $ (m .|.))
+
+-- Variant of additionalKeys, which appends new key action to the existing one
+-- (if any) instead of overwriting it. That means, that single key will
+-- executing both old and new actions.
+appendKeys :: XConfig a -> [((ButtonMask, KeySym), X ())] -> XConfig a
+appendKeys xcf ys   = xcf {keys = M.unionWith (>>) (M.fromList ys) . keys xcf}
 
