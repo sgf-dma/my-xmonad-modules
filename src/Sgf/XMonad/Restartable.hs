@@ -56,6 +56,7 @@ module Sgf.XMonad.Restartable
 import Data.List
 import Data.Maybe
 import Data.Typeable
+import Data.Monoid
 import Control.Monad
 import Control.Exception (try, IOException)
 import Control.Concurrent (threadDelay)
@@ -274,7 +275,7 @@ manageProg y        = liftX (getProcess y) >>= manageProcess (manageP y)
 -- program launch keys.
 handleProgs :: Maybe (ButtonMask, KeySym)
                -> [ProgConfig l] -> XConfig l -> XConfig l
-handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
+handleProgs mt ps cf = addProgKeys . addShowKey $ cf
     -- Run only one, matched program's ManageHook for any Window.  Program
     -- ManageHook-s may use `pid` function, which requests _NET_WM_PID window
     -- property, and sometimes it returns Nothing even though process has
@@ -301,20 +302,13 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
     -- all. Then add resulting key list to xmonad keys (overwriting matches
     -- now).
     --addProgKeys :: XConfig l1 -> XConfig l1
-    addProgKeys     = additionalKeys <*>
-                        (appendKeys <$> concat <$> mapM progKeys ps)
+    addProgKeys = appEndo $ foldMap (Endo . (appendKeys <*>) . progKeys) ps
     -- Key for showing program launch keys.
-    addShowKey :: Maybe (ButtonMask, KeySym) -> XConfig l
-                  -> [((ButtonMask, KeySym), X ())]
-    addShowKey (Just (mk, k)) XConfig{modMask = m} =
-                [ ( (m .|. mk, k)
-                  , spawn' "xmessage"
-                      [ "-default", "okay"
-                      , unlines . filter (/= "") . map showProgKeys $ ps
-                      ]
-                  )
-                ]
-    addShowKey Nothing _ = []
+    addShowKey :: XConfig l -> XConfig l
+    addShowKey  = additionalKeys' <*> mt `maybeKey` spawn' "xmessage"
+                    [ "-default", "okay"
+                    , unlines . filter (/= "") . map showProgKeys $ ps
+                    ]
     addWMPidSupport :: X ()
     addWMPidSupport = withDisplay $ \dpy -> do
         r <- asks theRoot
