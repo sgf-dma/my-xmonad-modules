@@ -50,11 +50,11 @@ import Control.Arrow hiding ((<+>))
 import XMonad
 import qualified XMonad.StackSet as W
 import qualified XMonad.Util.ExtensibleState as XS
-import XMonad.Util.EZConfig (additionalKeys)
 import XMonad.Hooks.ManageHelpers (currentWs)
 import XMonad.Hooks.SetWMName
 
 import Sgf.XMonad.X11
+import Sgf.XMonad.Util.EZConfig
 
 
 -- This module provides monad on top of Query monad providing additional
@@ -342,17 +342,14 @@ activateEventHook _ _   = return (All True)
 handleFocusQuery :: Maybe (ButtonMask, KeySym)  -- Key to toggle focus lock.
                     -> FocusHook
                     -> XConfig l -> XConfig l
-handleFocusQuery ml x cf   = (additionalKeys <*> addLockKey ml) $ cf
+handleFocusQuery mt x cf = addLockKey $ cf
     { manageHook        = manageFocus def x `mappend` manageHook cf
     , startupHook       = startupHook cf >> activateStartupHook
     , handleEventHook   = activateEventHook x `mappend` handleEventHook cf
     }
   where
-    addLockKey :: Maybe (ButtonMask, KeySym) -> XConfig l
-                      -> [((ButtonMask, KeySym), X ())]
-    addLockKey (Just (mk, k)) XConfig{modMask = m} =
-                            [((m .|. mk, k), toggleLock)]
-    addLockKey Nothing _ =  []
+    addLockKey :: XConfig l -> XConfig l
+    addLockKey      = additionalKeys' <*> mt `maybeKey` toggleLock
 
 -- `setWMName` creates support window (don't know why), sets its _NET_WM_NAME
 -- to specified value, sets '_NET_SUPPORTING_WM_CHECK' atom of support window
