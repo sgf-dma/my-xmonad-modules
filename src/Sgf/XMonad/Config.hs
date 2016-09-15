@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Sgf.XMonad.Config
     ( SessionConfig (..)
@@ -54,18 +55,36 @@ data SessionConfig l = SessionConfig
                         , anotherWorkspace  :: WindowSet -> WorkspaceId
                         , lockKey           :: Maybe (ButtonMask, KeySym)
                         }
-toXConfig :: LayoutClass l Window => SessionConfig l -> XConfig l
-             -> XConfig (ModifiedLayout AvoidStruts l)
-toXConfig          =
-    let defWs   = handleDefaultWorkspaces
-                    <$> defaultWorkspacesAtStartup  <*> defaultWorkspaces
-        fs      = handleFocusQuery <$> focusLockKey <*> focusHook
-        ps      = handleProgs <$> programHelpKey    <*> programs
-        ds      = handleDocks <$> docksToggleKey
-        ls      = handleLock  <$> lockKey <*> lockWorkspace <*> anotherWorkspace
-        -- `handleProgs` and `handleLock` may change new window placement, so
-        -- i should apply `handleFocusQuery` after it.
-    in  ds <.> defWs <.> fs <.> ls <.> ps
+session :: LayoutClass l Window => SessionConfig l -> XConfig l
+           -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) (ModifiedLayout AvoidStruts l))
+session             = let
+                      -- `handleProgs` and `handleLock` may change new window
+                      -- placement (workspace), so i should apply
+                      -- `handleFocusQuery` after them.
+                          mh = focusH <.> lock <.> progs
+                      in  others <.> docks <.> defWs <.> mh
+  where
+    progs :: SessionConfig l -> XConfig l -> XConfig l
+    progs           = handleProgs   <$> programHelpKey <*> programs
+    lock  :: SessionConfig l -> XConfig l -> XConfig l
+    lock            = handleLock    <$> lockKey
+                                    <*> lockWorkspace
+                                    <*> anotherWorkspace
+    focusH :: SessionConfig l -> XConfig l -> XConfig l
+    focusH          = handleFocusQuery <$> focusLockKey <*> focusHook
+    defWs  :: SessionConfig l -> XConfig l -> XConfig l
+    defWs           = handleDefaultWorkspaces <$> defaultWorkspacesAtStartup
+                                              <*> defaultWorkspaces
+    docks  :: LayoutClass l Window => SessionConfig l
+              -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
+    docks           = handleDocks <$> docksToggleKey
+    -- Functions not using SessionConfig (note type variable t).
+    others :: LayoutClass l Window => SessionConfig t -> XConfig l
+              -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) l)
+    others          = pure $ handleFullscreen
+                        . handleRecompile
+                        . handlePulse
+                        . handleEwmh
 
 instance Default (Tagged (SessionConfig l) FocusHook) where
     -- The order matters! Because `composeOne` returns the first FocusHook,
@@ -159,16 +178,6 @@ instance Default (SessionConfig l) where
 
 handleEwmh :: XConfig l -> XConfig l
 handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}
-
-session :: LayoutClass l Window => SessionConfig l -> XConfig l
-           -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) (ModifiedLayout AvoidStruts l))
-session cf          =
-    handleFullscreen
-      . handleRecompile
-      . handlePulse
-      . handleEwmh
-      . toXConfig cf
-
 
 layout :: Choose ResizableTall (Choose (Mirror ResizableTall) Full) Window
 layout              = tiled ||| Mirror tiled ||| Full
