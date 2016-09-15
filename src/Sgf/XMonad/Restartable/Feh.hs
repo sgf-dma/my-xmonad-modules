@@ -4,10 +4,10 @@ module Sgf.XMonad.Restartable.Feh
     ( Feh
     , fehProg
     , fehBg
-    , defaultFeh
     )
   where
 
+import Data.Default
 import Data.Typeable
 import Control.Monad.Trans
 import System.FilePath
@@ -30,12 +30,12 @@ fehProg f z@Feh {_fehProg = x}
 fehBg :: LensA Feh FilePath
 fehBg f z@Feh {_fehBg = x}
                     = fmap (\x' -> z{_fehBg = x'}) (f x)
-defaultFeh :: Feh
-defaultFeh          = Feh {_fehProg = defaultShell, _fehBg = ".fehbg"}
 
+instance Default Feh where
+    def             = Feh {_fehProg = defaultShell, _fehBg = ".fehbg"}
 instance Monoid Feh where
     x `mappend` y   = modifyA fehProg (viewA fehProg x `mappend`) y
-    mempty          = defaultFeh
+    mempty          = def
 instance ProcessClass Feh where
     pidL            = fehProg . pidL
 instance RestartClass Feh where

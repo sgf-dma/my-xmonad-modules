@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Sgf.XMonad.Config
     ( SessionConfig (..)
@@ -67,34 +68,34 @@ toXConfig          =
         -- i should apply `handleFocusQuery` after it.
     in  ds <.> defWs <.> fs <.> ls <.> ps
 
-instance Default (Tagged (SessionConfig l) FocusHook) where
-    -- The order matters! Because `composeOne` returns the first FocusHook,
-    -- which won't be Nothing and does not try the others.
-    def = Tagged $ composeOne
-            -- Always switch focus to `gmrun`.
-            [ new (className =? "Gmrun")    -?> switchFocus
-            -- If `gmrun` or firefox dialog prompt (e.g. master password prompt) is
-            -- focused on current workspace and new window appears here too, keep
-            -- focus unchanged.
-            , newOnCur <&&> focused (foldr1 (<||>)
-                [ className =? "Gmrun"
-                , (className =? "Iceweasel" <||> className =? "Firefox") <&&> isDialog
-                ])
-                                            -?> keepFocus
-            , activated -?> composeAll
-                -- If `gmrun` is focused on workspace, on which activated window is,
-                -- keep focus unchanged. I may still switch workspace there.
-                [ focused (className =? "Gmrun") --> keepFocus
-                -- If firefox window is activated, do not switch workspace. I may
-                -- still switch focus on that workspace.
-                , new (className =? "Iceweasel" <||> className =? "Firefox")
-                                            --> keepWorkspace
-                -- Default behavior for activated windows: switch workspace and focus.
-                , return True               --> switchWorkspace <+> switchFocus
-                ]
-            -- Default behavior for new windows: switch focus.
-            , return True                   -?> switchFocus
-            ]
+-- The order matters! Because `composeOne` returns the first FocusHook,
+-- which won't be Nothing and does not try the others.
+defFocusHook :: FocusHook
+defFocusHook        = composeOne
+    -- Always switch focus to `gmrun`.
+    [ new (className =? "Gmrun")    -?> switchFocus
+    -- If `gmrun` or firefox dialog prompt (e.g. master password prompt) is
+    -- focused on current workspace and new window appears here too, keep
+    -- focus unchanged.
+    , newOnCur <&&> focused (foldr1 (<||>)
+        [ className =? "Gmrun"
+        , (className =? "Iceweasel" <||> className =? "Firefox") <&&> isDialog
+        ])
+                                    -?> keepFocus
+    , activated -?> composeAll
+        -- If `gmrun` is focused on workspace, on which activated window is,
+        -- keep focus unchanged. I may still switch workspace there.
+        [ focused (className =? "Gmrun") --> keepFocus
+        -- If firefox window is activated, do not switch workspace. I may
+        -- still switch focus on that workspace.
+        , new (className =? "Iceweasel" <||> className =? "Firefox")
+                                    --> keepWorkspace
+        -- Default behavior for activated windows: switch workspace and focus.
+        , return True               --> switchWorkspace <+> switchFocus
+        ]
+    -- Default behavior for new windows: switch focus.
+    , return True                   -?> switchFocus
+    ]
 
 defDocks :: [ProgConfig l]
 defDocks            = addDock trayer : map addDock [xmobar, xmobarAlt]
@@ -138,16 +139,20 @@ defPrograms         = [addProg feh]
 
 -- Will use `xsetroot -grey`, if no .fehbg found.
 feh :: Feh
-feh                 = defaultFeh
+feh                 = def
 
+instance l ~ t => Default (Tagged (SessionConfig l) [ProgConfig t]) where
+    def             = Tagged (defDocks ++ defPrograms)
+instance Default (Tagged (SessionConfig l) FocusHook) where
+    def             = Tagged defFocusHook
 instance Default (SessionConfig l) where
     def = SessionConfig
-            { programs          = defDocks ++ defPrograms
+            { programs          = def `witness` x
             , programHelpKey    = Just (0, xK_s)
             , docksToggleKey    = Just (0, xK_b)
             , defaultWorkspacesAtStartup = False
             , defaultWorkspaces = (`elem` ["7"])
-            , focusHook         = witness def (def :: SessionConfig a)
+            , focusHook         = def `witness` x
             , focusLockKey      = Nothing
             , lockWorkspace     = "lock"
             -- Choose most recently viewed workspace to place new window moved
@@ -156,6 +161,12 @@ instance Default (SessionConfig l) where
                                     . map W.tag . W.workspaces
             , lockKey           = Just (shiftMask, xK_z)
             }
+      where
+        x :: SessionConfig l
+        x = undefined
+
+z :: [ProgConfig l]
+z   = addProg (def :: Feh) : (def `witness` (undefined :: SessionConfig l))
 
 handleEwmh :: XConfig l -> XConfig l
 handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}

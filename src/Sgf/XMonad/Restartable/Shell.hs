@@ -1,13 +1,15 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Sgf.XMonad.Restartable.Shell
     ( ShellArgs
     , shellCmd
     , Shell
-    , defaultShell
     )
   where
 
+import Data.Default
+import Data.Tagged
 import Data.Typeable
 import Codec.Binary.UTF8.String (encodeString)
 
@@ -30,6 +32,8 @@ instance Arguments ShellArgs where
     defaultArgs     = ShellArgs {_shellCmd = ""}
 
 type Shell          = Program ShellArgs
-defaultShell :: Shell
-defaultShell        = setA progBin "/bin/sh" defaultProgram
+instance Default (Tagged ShellArgs Shell) where
+    def             = Tagged (setA progBin "/bin/sh" defaultProgram)
+--defaultShell :: Shell
+--defaultShell        = setA progBin "/bin/sh" defaultProgram
 
