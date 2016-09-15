@@ -5,7 +5,6 @@
 
 module Sgf.XMonad.Config
     ( SessionConfig (..)
-    , SgfXConfig (..)
     , session
     )
   where
@@ -85,6 +84,9 @@ session             = let
                         . handleRecompile
                         . handlePulse
                         . handleEwmh
+
+handleEwmh :: XConfig l -> XConfig l
+handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}
 
 instance Default (Tagged (SessionConfig l) FocusHook) where
     -- The order matters! Because `composeOne` returns the first FocusHook,
@@ -176,9 +178,6 @@ instance Default (SessionConfig l) where
             , lockKey           = Just (shiftMask, xK_z)
             }
 
-handleEwmh :: XConfig l -> XConfig l
-handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}
-
 layout :: Choose ResizableTall (Choose (Mirror ResizableTall) Full) Window
 layout              = tiled ||| Mirror tiled ||| Full
   where
@@ -199,23 +198,13 @@ defKeys XConfig {modMask = m} =
       , ((m,  xK_z), sendMessage MirrorExpand)
       ]
 
-newtype SgfXConfig l = SgfXConfig {fromSgfXConfig :: XConfig l}
-instance l ~ Choose ResizableTall (Choose (Mirror ResizableTall) Full) => Default (SgfXConfig l) where
-    def             = SgfXConfig . (additionalKeys <*> defKeys)
-                        $ def {
-                        -- Workspace "lock" is for xtrlock only and it is
-                        -- inaccessible for workspace switch keys.
-                        modMask = mod4Mask
-                        , focusFollowsMouse = False
-                        -- Do not set terminal here: edit `xterm` value
-                        -- instead.  Because proper conversion from Program to
-                        -- String (and back) should be done with respect to
-                        -- shell escaping rules, it's simpler to just redefine
-                        -- 'mod+shift+enter' to use Program value (`xterm`). I
-                        -- set terminal here, though, to make it roughly match
-                        -- to `xterm` value and to avoid conversion issues i
-                        -- just throw away all arguments: at least it's safe..
-                        , clickJustFocuses = False
-                        , layoutHook = layout
-                        }
+instance l ~ Choose ResizableTall (Choose (Mirror ResizableTall) Full)
+         => Default (Tagged (SessionConfig t) (XConfig l))
+  where
+    def             = Tagged . (additionalKeys <*> defKeys)
+                        $ def   { modMask = mod4Mask
+                                , focusFollowsMouse = False
+                                , clickJustFocuses = False
+                                , layoutHook = layout
+                                }
 
