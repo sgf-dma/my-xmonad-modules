@@ -92,17 +92,10 @@ instance Default (Tagged (SessionConfig l) FocusHook) where
     -- The order matters! Because `composeOne` returns the first FocusHook,
     -- which won't be Nothing and does not try the others.
     def = Tagged $ composeOne
-            -- Always switch focus to `gmrun`.
-            [ new (className =? "Gmrun")    -?> switchFocus
-            -- If `gmrun` or firefox dialog prompt (e.g. master password prompt) is
-            -- focused on current workspace and new window appears here too, keep
-            -- focus unchanged.
-            , newOnCur <&&> focused (foldr1 (<||>)
-                [ className =? "Gmrun"
-                , (className =? "Iceweasel" <||> className =? "Firefox") <&&> isDialog
-                ])
-                                            -?> keepFocus
-            , activated -?> composeAll
+            -- FocusHook-s without `activated` predicate will match to
+            -- activated windows too. And because the first match will run, i
+            -- keep them after `activated` FocusHook.
+            [ activated -?> composeAll
                 -- If `gmrun` is focused on workspace, on which activated window is,
                 -- keep focus unchanged. I may still switch workspace there.
                 [ focused (className =? "Gmrun") --> keepFocus
@@ -113,6 +106,19 @@ instance Default (Tagged (SessionConfig l) FocusHook) where
                 -- Default behavior for activated windows: switch workspace and focus.
                 , return True               --> switchWorkspace <+> switchFocus
                 ]
+            -- Always switch focus to `gmrun`.
+            , new (className =? "Gmrun")    -?> switchFocus
+            -- And always keep focus on `gmrun`. Note, that another `gmrun`
+            -- will steal focus from already running one.
+            , focused (className =? "Gmrun") -?> keepFocus
+            -- If firefox dialog prompt (e.g. master password prompt) is
+            -- focused on current workspace and new window appears here too
+            -- (note, that i use `focused`, but due to `newOnCur` it is
+            -- effectively an equivalent to `focusedCur`), keep focus
+            -- unchanged.
+            , newOnCur <&&> focused
+                ((className =? "Iceweasel" <||> className =? "Firefox") <&&> isDialog)
+                                            -?> keepFocus
             -- Default behavior for new windows: switch focus.
             , return True                   -?> switchFocus
             ]

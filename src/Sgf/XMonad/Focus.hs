@@ -95,13 +95,7 @@ import Sgf.XMonad.Util.EZConfig
 --      fh :: FocusHook
 --      fh = composeOne
 --              -- Always switch focus to `gmrun`.
---              [ new (className =? "Gmrun")
---                                      -?> switchFocus
---              -- If `gmrun` is focused on current workspace and new window
---              -- appears here too, keep focus unchanged.
---              , newOnCur <&&> focused (className =? "Gmrun")
---                                      -?> keepFocus
---              , activated -?> composeAll
+--              [ activated -?> composeAll
 --                  -- If `gmrun` is focused on workspace, on which
 --                  -- activated window is, keep focus unchanged. I may
 --                  -- still switch workspace there.
@@ -116,9 +110,19 @@ import Sgf.XMonad.Util.EZConfig
 --                  -- workspace and focus.
 --                  , return True       --> switchWorkspace <+> switchFocus
 --                  ]
+--              , new (className =? "Gmrun")
+--                                      -?> switchFocus
+--              -- If `gmrun` is focused on current workspace and new window
+--              -- appears here too, keep focus unchanged.
+--              , newOnCur <&&> focused (className =? "Gmrun")
+--                                      -?> keepFocus
 --              -- Default behavior for new windows: switch focus.
 --              , return True           -?> switchFocus
 --              ]
+--
+-- Note, the order of values in list: FocusHook-s without `activated` predicate
+-- will match with *both* activated and normal new window. And, because there
+-- `composeOne` is used, only the first match will run.
 --
 -- I may define my own `handleFocusQuery` too.
 --
