@@ -21,7 +21,7 @@ handleFullscreen :: LayoutClass l Window => XConfig l
                     -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) l)
 handleFullscreen cf = cf
     { layoutHook        = lessBorders OtherIndicated (layoutHook cf)
-    , handleEventHook   = fullscreenEventHook <+> handleEventHook cf
+    , handleEventHook   = fullscreenEventHook `mappend` handleEventHook cf
     -- Note, the order in startupHook is important: `ewmh` function from
     -- XMonad.Hooks.EwmhDesktops also sets some atoms in _NET_SUPPORTED and
     -- uses 'propModeReplace'. Thus, it should be applied (if ever) *before*
