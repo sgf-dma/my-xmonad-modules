@@ -65,7 +65,6 @@ import System.Posix.Signals (signalProcess, sigTERM)
 import System.Posix.Types (ProcessID)
 
 import XMonad
-import XMonad.Util.EZConfig (additionalKeys)
 import XMonad.Hooks.ManageHelpers
 import qualified XMonad.Util.ExtensibleState as XS
 
