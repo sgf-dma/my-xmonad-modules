@@ -347,9 +347,14 @@ handleFocusQuery :: Maybe (ButtonMask, KeySym)  -- Key to toggle focus lock.
                     -> FocusHook
                     -> XConfig l -> XConfig l
 handleFocusQuery mt x cf = addLockKey $ cf
-    { manageHook        = manageFocus def x `mappend` manageHook cf
+    -- Note, the order: i want to apply FocusHook after user's changes, which
+    -- may change new/activated window workspace. Thus, in `manageHook`, which
+    -- is function composition, i should add in Monoid to the left, but in
+    -- `handleEventHook`, which runs actions from left to right, to the right!
+    { manageHook        = manageFocus def x  `mappend` manageHook cf
+    , handleEventHook   = handleEventHook cf `mappend` activateEventHook x
+    -- Note, the order: i make my changes after user's changes here too.
     , startupHook       = startupHook cf >> activateStartupHook
-    , handleEventHook   = activateEventHook x `mappend` handleEventHook cf
     }
   where
     addLockKey :: XConfig l -> XConfig l
