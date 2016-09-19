@@ -48,7 +48,8 @@ data SessionConfig l = SessionConfig
                         , docksToggleKey    :: Maybe (ButtonMask, KeySym)
                         , defaultWorkspacesAtStartup :: Bool
                         , defaultWorkspaces :: WorkspaceId -> Bool
-                        , focusHook         :: FocusHook
+                        , activateFocusHook :: FocusHook
+                        , newFocusHook      :: FocusHook
                         , focusLockKey      :: Maybe (ButtonMask, KeySym)
                         , lockWorkspace     :: WorkspaceId
                         , anotherWorkspace  :: WindowSet -> WorkspaceId
@@ -70,7 +71,17 @@ session             = let
                                     <*> lockWorkspace
                                     <*> anotherWorkspace
     focusH :: SessionConfig l -> XConfig l -> XConfig l
-    focusH          = handleFocusQuery <$> focusLockKey <*> focusHook
+    focusH          = go <$> focusLockKey
+                         <*> activateFocusHook
+                         <*> newFocusHook
+      where
+        -- Note, the order: FocusHook without `activated` predicate will match
+        -- to activated windows too, thus i should place it after one with
+        -- `activated`.
+        go :: Maybe (ButtonMask, KeySym) -> FocusHook -> FocusHook
+              -> XConfig l -> XConfig l
+        go mk af nf = handleFocusQuery mk $
+                        composeOne [activated -?> af, Just <$> nf]
     defWs  :: SessionConfig l -> XConfig l -> XConfig l
     defWs           = handleDefaultWorkspaces <$> defaultWorkspacesAtStartup
                                               <*> defaultWorkspaces
@@ -87,41 +98,6 @@ session             = let
 
 handleEwmh :: XConfig l -> XConfig l
 handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}
-
-instance Default (Tagged (SessionConfig l) FocusHook) where
-    -- The order matters! Because `composeOne` returns the first FocusHook,
-    -- which won't be Nothing and does not try the others.
-    def = Tagged $ composeOne
-            -- FocusHook-s without `activated` predicate will match to
-            -- activated windows too. And because the first match will run, i
-            -- keep them after `activated` FocusHook.
-            [ activated -?> composeAll
-                -- If `gmrun` is focused on workspace, on which activated window is,
-                -- keep focus unchanged. I may still switch workspace there.
-                [ focused (className =? "Gmrun") --> keepFocus
-                -- If firefox window is activated, do not switch workspace. I may
-                -- still switch focus on that workspace.
-                , new (className =? "Iceweasel" <||> className =? "Firefox")
-                                            --> keepWorkspace
-                -- Default behavior for activated windows: switch workspace and focus.
-                , return True               --> switchWorkspace <+> switchFocus
-                ]
-            -- Always switch focus to `gmrun`.
-            , new (className =? "Gmrun")    -?> switchFocus
-            -- And always keep focus on `gmrun`. Note, that another `gmrun`
-            -- will steal focus from already running one.
-            , focused (className =? "Gmrun") -?> keepFocus
-            -- If firefox dialog prompt (e.g. master password prompt) is
-            -- focused on current workspace and new window appears here too
-            -- (note, that i use `focused`, but due to `newOnCur` it is
-            -- effectively an equivalent to `focusedCur`), keep focus
-            -- unchanged.
-            , newOnCur <&&> focused
-                ((className =? "Iceweasel" <||> className =? "Firefox") <&&> isDialog)
-                                            -?> keepFocus
-            -- Default behavior for new windows: switch focus.
-            , return True                   -?> switchFocus
-            ]
 
 defDocks :: [ProgConfig l]
 defDocks            = addDock trayer : map addDock [xmobar, xmobarAlt]
@@ -174,7 +150,37 @@ instance Default (SessionConfig l) where
             , docksToggleKey    = Just (0, xK_b)
             , defaultWorkspacesAtStartup = False
             , defaultWorkspaces = (`elem` ["7"])
-            , focusHook         = witness def (def :: SessionConfig a)
+            , activateFocusHook = composeAll
+                -- If `gmrun` is focused on workspace, on which activated
+                -- window is, keep focus unchanged. But i may still switch
+                -- workspace.
+                [ focused (className =? "Gmrun")
+                                --> keepFocus
+                -- If firefox window is activated, do not switch workspace.
+                -- But i may still switch focus on that workspace.
+                , new (className =? "Iceweasel" <||> className =? "Firefox")
+                                --> keepWorkspace
+                -- Default behavior for activated windows: switch workspace
+                -- and focus.
+                , return True   --> switchWorkspace <+> switchFocus
+                ]
+            , newFocusHook      = composeOne
+                -- Always switch focus to `gmrun`.
+                [ new (className =? "Gmrun")        -?> switchFocus
+                -- And always keep focus on `gmrun`. Note, that another
+                -- `gmrun` will steal focus from already running one.
+                , focused (className =? "Gmrun")    -?> keepFocus
+                -- If firefox dialog prompt (e.g. master password prompt) is
+                -- focused on current workspace and new window appears here
+                -- too, keep focus unchanged (note, used predicates: `newOnCur
+                -- <&&> focused` is the same as `newOnCur <&&> focusedCur`,
+                -- but is *not* the same as just `focusedCur` )
+                , newOnCur <&&> focused
+                    ((className =? "Iceweasel" <||> className =? "Firefox") <&&> isDialog)
+                                                    -?> keepFocus
+                -- Default behavior for new windows: switch focus.
+                , return True                       -?> switchFocus
+                ]
             , focusLockKey      = Nothing
             , lockWorkspace     = "lock"
             -- Choose most recently viewed workspace to place new window moved
