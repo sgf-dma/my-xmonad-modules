@@ -72,6 +72,7 @@ import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Util.Run
 import Sgf.XMonad.Util.EZConfig
+import Sgf.XMonad.Focus
 
 
 -- To avoid orphan (ExtensionClass [a]) instance, i need newtype.
@@ -420,8 +421,12 @@ programKillP :: (Arguments b, Typeable b, Show b, Read b, Eq b)
                 => LensA a (Program b) -> a -> X a
 programKillP progL  = modifyAA progL killP
 programManageP :: Arguments b => LensA a (Program b) -> a -> ManageHook
-programManageP progL x  = let w = viewA (progL . progWorkspace) x
-                          in  if null w then idHook else doShift w
+programManageP progL x
+  | null w          = idHook
+  | otherwise       =manageFocus (not <$> activated --> new (doShift w))
+  where
+    w :: WorkspaceId
+    w               = viewA (progL . progWorkspace) x
 programDoLaunch :: (Arguments b, Typeable b, Show b, Read b, Eq b)
                    => LensA a (Program b) -> a -> X ()
 programDoLaunch progL   = doLaunchP . viewA progL
