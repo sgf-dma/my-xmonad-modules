@@ -172,7 +172,7 @@ instance Default (SessionConfig l) where
                 , focused (className =? "Gmrun")    -?> keepFocus
                 -- If firefox dialog prompt (e.g. master password prompt) is
                 -- focused on current workspace and new window appears here
-                -- too, keep focus unchanged (note, used predicates: `newOnCur
+                -- too, keep focus unchanged (note, used predicate: `newOnCur
                 -- <&&> focused` is the same as `newOnCur <&&> focusedCur`,
                 -- but is *not* the same as just `focusedCur` )
                 , newOnCur <&&> focused

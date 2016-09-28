@@ -29,8 +29,7 @@ handleLock mt lockWs anotherWs xcf = addLockKey $ xcf
 -- Moves away new window from lock workspace regardless of current workspace
 -- and focus.
 manageLock :: WorkspaceId -> (WindowSet -> WorkspaceId) -> ManageHook
-manageLock lockWs anotherWs =
-    manageFocus def (newOn lockWs --> moveTo anotherWs)
+manageLock lockWs anotherWs = manageFocus (newOn lockWs --> moveTo anotherWs)
 
 moveTo :: (WindowSet -> WorkspaceId) -> FocusHook
 moveTo anotherWs    = new $ asks pure >>= doF . (shiftWin <*> anotherWs <*>)
