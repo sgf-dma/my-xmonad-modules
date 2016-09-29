@@ -6,6 +6,7 @@
 module Sgf.XMonad.Config
     ( SessionConfig (..)
     , session
+    , handleEwmh
     )
   where
 
@@ -96,6 +97,8 @@ session             = let
                         . handlePulse
                         . handleEwmh
 
+-- Reset _NET_SUPPORTED, so atoms added by display manager won't be inherited.
+-- If xmonad needs any of them, i should add them explicitly.
 handleEwmh :: XConfig l -> XConfig l
 handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}
 
