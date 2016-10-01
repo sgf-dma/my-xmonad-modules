@@ -26,6 +26,7 @@ module Sgf.XMonad.Focus
     , newOn
     , newOnCur
     , activated
+    , unlessFocusLock
 
     -- Commonly used actions for modifying focus.
     , keepFocus
@@ -55,6 +56,7 @@ import XMonad.Hooks.SetWMName
 
 import Sgf.XMonad.X11
 import Sgf.XMonad.Util.EZConfig
+import Sgf.Control.Monad
 
 
 -- This module provides monad on top of Query monad providing additional
@@ -197,8 +199,8 @@ import Sgf.XMonad.Util.EZConfig
 --  usually there should be only one `handleEventHook` processing activated
 --  windows.
 --
--- Finally, another interesting example is moving activated window to current
--- workspace by default, while still applying FocusHook:
+-- Finally, another interesting example is moving all activated windows to
+-- current workspace by default, and applying FocusHook after:
 --
 --      import XMonad
 --      import qualified XMonad.StackSet as W
@@ -209,19 +211,41 @@ import Sgf.XMonad.Util.EZConfig
 --      main :: IO ()
 --      main = do
 --              let xcf = handleFocusQuery (Just (0, xK_v)) (composeOne
---                              [ activated -?> (newOnCur --> keepFocus) <+> (activateFocusHook def)
+--                              [ activated -?> (newOnCur --> keepFocus)
 --                              , Just <$> (newFocusHook def)
 --                              ])
 --                          $ def
 --                              { modMask = mod4Mask
---                              , manageHook = manageFocus (activated -->
---                                              (asks currentWorkspace >>= \i ->
---                                               new (reader (W.shiftWin i) >>= doF)))
+--                              , manageHook = manageFocus activateOnCurrentWs
 --                              }
 --              xmonad xcf
 --
--- Here i want to keep focus, if activated window appears on current workspace
--- (beyond what is already done by default activated window FocusHook).
+--      activateOnCurrentWs :: FocusHook
+--      activateOnCurrentWs = activated --> asks currentWorkspace >>=
+--                              new . unlessFocusLock . doShift
+--
+--      composeOne :: (Monoid a, Monad m) => [m (Maybe a)] -> m a
+--      composeOne [] = return mempty
+--      composeOne (mx : xs) = do
+--          x <- mx
+--          case x of
+--            Just y  -> return y
+--            Nothing -> composeOne xs
+--
+--      infixr 0 -?>
+--      (-?>) :: Monad m => m Bool -> m a -> m (Maybe a)
+--      (-?>) mb mx     = do
+--          b <- mb
+--          if b
+--            then Just <$> mx
+--            else return Nothing
+--
+-- Note here:
+--  - when `activateFocusHook` will run, activated window will be *already* on
+--  current workspace, thus, if i do not want to move some activated windows,
+--  i should filter them out in `activateOnCurrentWs` FocusHook.
+--  - i want to keep focus, when activated window appears on current
+--  workspace.
 
 data Focus          = Focus
                         -- Workspace, where new window appears.
@@ -329,6 +353,12 @@ newOnCur            = asks currentWorkspace >>= newOn
 -- Does new window  _NET_ACTIVE_WINDOW activated?
 activated :: FocusQuery Bool
 activated           = liftQuery (liftX XS.get) >>= return . netActivated
+
+-- Execute Query, unless focus is locked.
+unlessFocusLock :: Monoid a => Query a -> Query a
+unlessFocusLock m   = do
+    FocusLock b <- liftX $ XS.get
+    when' (not b) m
 
 -- I don't know on which workspace new window will appear until i actually run
 -- (Endo WindowSet) function (in `windows` in XMonad.Operations), but in (Endo
