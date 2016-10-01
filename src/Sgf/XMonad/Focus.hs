@@ -26,6 +26,7 @@ module Sgf.XMonad.Focus
     , newOn
     , newOnCur
     , activated
+    , unlessFocusLock
 
     -- Commonly used actions for modifying focus.
     , keepFocus
@@ -55,6 +56,7 @@ import XMonad.Hooks.SetWMName
 
 import Sgf.XMonad.X11
 import Sgf.XMonad.Util.EZConfig
+import Sgf.Control.Monad
 
 
 -- This module provides monad on top of Query monad providing additional
@@ -329,6 +331,12 @@ newOnCur            = asks currentWorkspace >>= newOn
 -- Does new window  _NET_ACTIVE_WINDOW activated?
 activated :: FocusQuery Bool
 activated           = liftQuery (liftX XS.get) >>= return . netActivated
+
+-- Execute Query, unless focus is locked.
+unlessFocusLock :: Monoid a => Query a -> Query a
+unlessFocusLock m   = do
+    FocusLock b <- liftX $ XS.get
+    when' (not b) m
 
 -- I don't know on which workspace new window will appear until i actually run
 -- (Endo WindowSet) function (in `windows` in XMonad.Operations), but in (Endo
