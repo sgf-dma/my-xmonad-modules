@@ -1,42 +1,41 @@
-{-# LANGUAGE FlexibleContexts #-}
 
 module Sgf.XMonad.Lock
     ( handleLock
+    , manageLock
     )
   where
 
-import Data.Maybe
 import System.Process
 
 import XMonad
 import qualified XMonad.StackSet as W
-import XMonad.Util.EZConfig
 
-handleLock :: XConfig l -> XConfig l
-handleLock xcf      = additionalKeys <*> lockKeys $ xcf
-        {
-        workspaces = workspaces xcf ++ ["lock"]
-        , manageHook = manageLockWorkspace "lock" <+> manageHook xcf
+import Sgf.XMonad.Focus
+import Sgf.XMonad.Util.EZConfig
+
+
+handleLock :: Maybe (ButtonMask, KeySym)    -- Lock key.
+              -> WorkspaceId                -- Lock workspace name.
+              -> (WindowSet -> WorkspaceId) -- Workspace, where to move new
+                                            -- window from lock workspace.
+              -> XConfig l -> XConfig l
+handleLock mt lockWs anotherWs xcf = addLockKey $ xcf
+        { workspaces = workspaces xcf ++ [lockWs]
+        , manageHook = manageLock lockWs anotherWs <+> manageHook xcf
         }
   where
-    lockKeys :: XConfig l -> [((ButtonMask, KeySym), X ())]
-    lockKeys XConfig {modMask = m} = [((m .|. shiftMask, xK_z), lock)]
-
--- Moves away new window from "lock" workspace regardless of current workspace
+    addLockKey :: XConfig l -> XConfig l
+    addLockKey      = additionalKeys' <*> mt `maybeKey` lock
+-- Moves away new window from lock workspace regardless of current workspace
 -- and focus.
-manageLockWorkspace :: WorkspaceId -> ManageHook
-manageLockWorkspace t   = ask >>= doF . lockWorkspace t
+manageLock :: WorkspaceId -> (WindowSet -> WorkspaceId) -> ManageHook
+manageLock lockWs anotherWs = manageFocus (newOn lockWs --> moveTo anotherWs)
 
-lockWorkspace :: WorkspaceId -> Window -> WindowSet -> WindowSet
-lockWorkspace t w ws    = fromMaybe ws $ do
-    i <- W.findTag w ws
-    return $ if i == t
-      then W.shiftWin (anotherWorkspace t ws) w ws
-      else ws
-
--- Which workspace to choose, when new window has assigned to lock workspace.
-anotherWorkspace :: WorkspaceId -> WindowSet -> WorkspaceId
-anotherWorkspace t      = head . filter (/= t) . map W.tag . W.workspaces
+moveTo :: (WindowSet -> WorkspaceId) -> FocusHook
+moveTo anotherWs    = new $ asks pure >>= doF . (shiftWin <*> anotherWs <*>)
+  where
+    shiftWin :: WindowSet -> WorkspaceId -> Window -> WindowSet
+    shiftWin ws i w = W.shiftWin i w ws
 
 -- FIXME: When i wait for xtrlock process to terminate, i always come back to
 -- old workpace, where i was before pressing lock keys (regardless of

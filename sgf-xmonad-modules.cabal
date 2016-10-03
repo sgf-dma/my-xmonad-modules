@@ -1,5 +1,5 @@
 name:                sgf-xmonad-modules
-version:             1.1.1.0
+version:             1.2.0
 synopsis:            sgf's xmonad modules
 description:         sgf's xmonad modules
 homepage:            https://github.com/sgf-dma/sgf-xmonad-modules
@@ -34,9 +34,12 @@ library
                        Sgf.XMonad.Fullscreen
                        Sgf.XMonad.Lock
                        Sgf.XMonad.Pulse
+                       Sgf.XMonad.Hooks.ManageHelpers
+                       Sgf.XMonad.X11
   build-depends:       base
                      , mtl
                      , transformers
+                     , tagged
                      , filepath
                      , directory
                      , unix

@@ -56,6 +56,7 @@ module Sgf.XMonad.Restartable
 import Data.List
 import Data.Maybe
 import Data.Typeable
+import Data.Monoid
 import Control.Monad
 import Control.Exception (try, IOException)
 import Control.Concurrent (threadDelay)
@@ -64,7 +65,6 @@ import System.Posix.Signals (signalProcess, sigTERM)
 import System.Posix.Types (ProcessID)
 
 import XMonad
-import XMonad.Util.EZConfig (additionalKeys)
 import XMonad.Hooks.ManageHelpers
 import qualified XMonad.Util.ExtensibleState as XS
 
@@ -72,6 +72,7 @@ import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Util.Run
 import Sgf.XMonad.Util.EZConfig
+import Sgf.XMonad.Focus
 
 
 -- To avoid orphan (ExtensionClass [a]) instance, i need newtype.
@@ -274,7 +275,7 @@ manageProg y        = liftX (getProcess y) >>= manageProcess (manageP y)
 -- program launch keys.
 handleProgs :: Maybe (ButtonMask, KeySym)
                -> [ProgConfig l] -> XConfig l -> XConfig l
-handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
+handleProgs mt ps cf = addProgKeys . addShowKey $ cf
     -- Run only one, matched program's ManageHook for any Window.  Program
     -- ManageHook-s may use `pid` function, which requests _NET_WM_PID window
     -- property, and sometimes it returns Nothing even though process has
@@ -284,7 +285,14 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
                         liftIO $ threadDelay 300000
                         composeOne (map progManageHook ps) <+> manageHook cf
     -- Restart all programs at xmonad startup.
-    , startupHook   = mapM_ progStartupHook ps >> startupHook cf
+    -- Note, the order in startupHook is important: `ewmh` function from
+    -- XMonad.Hooks.EwmhDesktops also sets some atoms in _NET_SUPPORTED and
+    -- uses 'propModeReplace'. Thus, it should be applied (if ever) *before*
+    -- to not overwrite my changes.
+    , startupHook   = do
+                        mapM_ progStartupHook ps
+                        startupHook cf
+                        addWMPidSupport
     -- Log to all programs.
     , logHook       = mapM_ progLogHook ps >> logHook cf
     }
@@ -294,20 +302,20 @@ handleProgs mt ps cf = addProgKeys . (additionalKeys <*> addShowKey mt) $ cf
     -- all. Then add resulting key list to xmonad keys (overwriting matches
     -- now).
     --addProgKeys :: XConfig l1 -> XConfig l1
-    addProgKeys     = additionalKeys <*>
-                        (appendKeys <$> concat <$> mapM progKeys ps)
+    addProgKeys = appEndo $ foldMap (Endo . (appendKeys <*>) . progKeys) ps
     -- Key for showing program launch keys.
-    addShowKey :: Maybe (ButtonMask, KeySym) -> XConfig l
-                  -> [((ButtonMask, KeySym), X ())]
-    addShowKey (Just (mk, k)) XConfig{modMask = m} =
-                [ ( (m .|. mk, k)
-                  , spawn' "xmessage"
-                      [ "-default", "okay"
-                      , unlines . filter (/= "") . map showProgKeys $ ps
-                      ]
-                  )
-                ]
-    addShowKey Nothing _ = []
+    addShowKey :: XConfig l -> XConfig l
+    addShowKey  = additionalKeys' <*> mt `maybeKey` spawn' "xmessage"
+                    [ "-default", "okay"
+                    , unlines . filter (/= "") . map showProgKeys $ ps
+                    ]
+    addWMPidSupport :: X ()
+    addWMPidSupport = withDisplay $ \dpy -> do
+        r <- asks theRoot
+        a <- getAtom "_NET_SUPPORTED"
+        c <- getAtom "ATOM"
+        supp <- getAtom "_NET_WM_PID"
+        io $ changeProperty32 dpy r a c propModeAppend [fromIntegral supp]
 
 class Arguments a where
     serialize   :: MonadIO m => a -> m [String]
@@ -413,8 +421,12 @@ programKillP :: (Arguments b, Typeable b, Show b, Read b, Eq b)
                 => LensA a (Program b) -> a -> X a
 programKillP progL  = modifyAA progL killP
 programManageP :: Arguments b => LensA a (Program b) -> a -> ManageHook
-programManageP progL x  = let w = viewA (progL . progWorkspace) x
-                          in  if null w then idHook else doShift w
+programManageP progL x
+  | null w          = idHook
+  | otherwise       =manageFocus (not <$> activated --> new (doShift w))
+  where
+    w :: WorkspaceId
+    w               = viewA (progL . progWorkspace) x
 programDoLaunch :: (Arguments b, Typeable b, Show b, Read b, Eq b)
                    => LensA a (Program b) -> a -> X ()
 programDoLaunch progL   = doLaunchP . viewA progL
