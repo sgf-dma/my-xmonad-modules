@@ -27,8 +27,8 @@ showWindow w        = do
     return ("'" ++ t ++ "' - " ++ show w)
 
 -- Log tiled and floating windows on specified workspace.
-traceWorkspace :: WorkspaceId -> X ()
-traceWorkspace i    = withWindowSet $ \ws -> do
+traceWorkspace3 :: WorkspaceId -> X ()
+traceWorkspace3 i    = withWindowSet $ \ws -> do
       let ws'  = W.view i ws
           flts = W.floating ws'
           (ffx, ftx) = fromMaybe (Nothing, Nothing) $ do
@@ -56,6 +56,50 @@ traceWorkspace i    = withWindowSet $ \ws -> do
     left            = with [] W.up
     right :: W.StackSet i l a s sd -> [a]
     right           = with [] W.down
+
+{-
+h :: WorkspaceId -> X ()
+--h i = withWindowSet $ \ws -> maybe (return ()) trace =<< runMaybeT undefined
+h i = withWindowSet $ \ws -> fmap (fromMaybe ()) $ runMaybeT $ do
+    let flts = W.floating ws
+        ws'  = W.view i ws
+    ss <- liftMaybe . W.stack . W.workspace . W.current $ ws'
+    lift $ traceStack flts ss >>= trace . format
+  where
+    format :: [String] -> String
+    format          = unlines . map (("<" ++ i ++ "> ") ++)
+    liftMaybe :: Monad m => Maybe a -> MaybeT m a
+    liftMaybe       = MaybeT . return
+-}
+
+traceWorkspace :: WorkspaceId -> X ()
+traceWorkspace i = withWindowSet $ \ws -> maybe (return ())
+    (trace . format <=< traceStack (W.floating ws))
+    (W.stack . W.workspace . W.current . W.view i $ ws)
+  where
+    format :: [String] -> String
+    format          = unlines . map (("<" ++ i ++ "> ") ++)
+
+-- Show information about tiled and floating windows in Stack. I need a list
+-- of floating windows to distinguish tiled and floating windows.
+traceStack :: M.Map Window W.RationalRect -> W.Stack Window -> X [String]
+traceStack flts st  = do
+    let fx  = W.focus st
+        fb  = fx `M.member` flts
+        fxs = [x | x <- W.integrate st, x `M.member` flts, x /= fx]
+        lxs = [x | x <- W.up st  , x `notElem` fxs]
+        rxs = [x | x <- W.down st, x `notElem` fxs]
+    fs  <- mapM showWindow fxs  -- Floating windows, except focused.
+    lts <- mapM showWindow lxs  -- Left tiled windows.
+    rts <- mapM showWindow rxs  -- Right tiled windows.
+    f   <- showWindow fx        -- Focused window.
+    return $
+        [ "tiled: left: "  ++ show lts
+            ++ ", focus: " ++ if fb then show f else "\"\""
+            ++ ", right: " ++ show rts
+        , "floating: " ++ show fs
+            ++ ", focus: " ++ if fb then show f else "\"\""
+        ]
 
 -- Log all windows on current workspace.
 traceCurrentWorkspace :: X ()
