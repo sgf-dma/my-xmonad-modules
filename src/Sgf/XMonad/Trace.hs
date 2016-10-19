@@ -30,8 +30,8 @@ showWindow w        = do
 traceWorkspace :: WorkspaceId -> X ()
 traceWorkspace i    = withWindowSet $ \ws -> do
       let ws' = W.view i ws
-          fxs = [x | x <- W.index ws', x `M.member` (W.floating ws')]
           ffx = [x | x <- peek    ws', x `M.member` (W.floating ws')]
+          fxs = [x | x <- W.index ws', x `M.member` (W.floating ws'), x `notElem`  ffx]
           lxs = [x | x <- left    ws', x `notElem`  fxs]
           rxs = [x | x <- right   ws', x `notElem`  fxs]
           ftx = [x | x <- peek    ws', x `notElem`  fxs]
