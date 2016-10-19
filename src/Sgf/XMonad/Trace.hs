@@ -95,7 +95,7 @@ traceStack flts st  = do
     f   <- showWindow fx        -- Focused window.
     return $
         [ "tiled: left: "  ++ show lts
-            ++ ", focus: " ++ (if fb then show f else "\"\"")
+            ++ ", focus: " ++ (if fb then "\"\"" else show f)
             ++ ", right: " ++ show rts
         , "floating: " ++ show fs
             ++ ", focus: " ++ (if fb then show f else "\"\"")
