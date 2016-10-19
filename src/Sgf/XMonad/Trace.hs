@@ -29,13 +29,31 @@ showWindow w        = do
 -- Log tiled and floating windows on specified workspace.
 traceWorkspace :: WorkspaceId -> X ()
 traceWorkspace i    = withWindowSet $ \ws -> do
-      let xs  = W.index . W.view i $ ws
-          fxs = [x | x <- xs, M.member x (W.floating ws)]
-          txs = [x | x <- xs, x `notElem` fxs]
-      ts <- mapM showWindow txs
-      fs <- mapM showWindow fxs
-      trace $ "<" ++ i ++ "> tiled: "    ++ show ts
+      let ws' = W.view i ws
+          fxs = [x | x <- W.index ws', x `M.member` (W.floating ws')]
+          lxs = [x | x <- left    ws', x `notElem`  fxs]
+          rxs = [x | x <- right   ws', x `notElem`  fxs]
+          fx  = [x | x <- peek    ws', x `notElem`  fxs]
+          --lxs = [x | x <- W.Stack . W.workspace . W.current
+          --txs = [x | x <- xs, x `notElem` fxs]
+      lts <- mapM showWindow lxs
+      ft  <- mapM showWindow fx
+      rts <- mapM showWindow rxs
+      fs  <- mapM showWindow fxs
+      trace $ "<" ++ i ++ "> tiled: left: "  ++ show lts
+                              ++ ", focus: " ++ show ft
+                              ++ ", right: " ++ show rts
       trace $ "<" ++ i ++ "> floating: " ++ show fs
+  where
+    -- Copy `with` from 'XMonad.StackSet', because it's not exported.
+    with :: b -> (W.Stack a -> b) -> W.StackSet i l a s sd -> b
+    with dflt f     = maybe dflt f . W.stack . W.workspace . W.current
+    left :: W.StackSet i l a s sd -> [a]
+    left            = with [] W.up
+    right :: W.StackSet i l a s sd -> [a]
+    right           = with [] W.down
+    peek :: W.StackSet i l a s sd -> [a]
+    peek            = with [] ((: []) . W.focus)
 
 -- Log all windows on current workspace.
 traceCurrentWorkspace :: X ()
