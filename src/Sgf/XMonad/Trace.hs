@@ -95,10 +95,10 @@ traceStack flts st  = do
     f   <- showWindow fx        -- Focused window.
     return $
         [ "tiled: left: "  ++ show lts
-            ++ ", focus: " ++ if fb then show f else "\"\""
+            ++ ", focus: " ++ (if fb then show f else "\"\"")
             ++ ", right: " ++ show rts
         , "floating: " ++ show fs
-            ++ ", focus: " ++ if fb then show f else "\"\""
+            ++ ", focus: " ++ (if fb then show f else "\"\"")
         ]
 
 -- Log all windows on current workspace.
