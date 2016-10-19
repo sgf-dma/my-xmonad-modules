@@ -31,8 +31,6 @@ traceWorkspace :: WorkspaceId -> X ()
 traceWorkspace i    = withWindowSet $ \ws -> do
       let ws'  = W.view i ws
           flts = W.floating ws'
-          --ffx = [x | x <- peek    ws', x `M.member` flt]
-          --ffx = W.peek ws' >>= \x -> guard (x `M.member` (W.floating ws')) >> return x
           (ffx, ftx) = fromMaybe (Nothing, Nothing) $ do
             x <- W.peek ws'
             if x `M.member` flts
@@ -41,17 +39,11 @@ traceWorkspace i    = withWindowSet $ \ws -> do
           fxs = [x | x <- W.index ws', x `M.member` flts, maybe True (x /=) ffx]
           lxs = [x | x <- left    ws', x `notElem`  fxs]
           rxs = [x | x <- right   ws', x `notElem`  fxs]
-          --ftx = [x | x <- peek    ws']
-          --ftx = do
-          --  x <- W.peek ws'
-          --  if x /= ffx then return x else mzero
-          --lxs = [x | x <- W.Stack . W.workspace . W.current
-          --txs = [x | x <- xs, x `notElem` fxs]
-      lts <- mapM showWindow lxs    -- Left tiled.
-      ft  <- maybe (return "") showWindow ftx    -- Focused window, if it's tiled.
-      rts <- mapM showWindow rxs    -- Right tiled.
-      fs  <- mapM showWindow fxs    -- Floating, except focused.
-      ff  <- maybe (return "") showWindow ffx
+      fs  <- mapM showWindow fxs    -- Floating windows, except focused.
+      lts <- mapM showWindow lxs    -- Left tiled windows.
+      rts <- mapM showWindow rxs    -- Right tiled windows.
+      ft  <- maybe (return "") showWindow ftx   -- Focused window, if it's tiled.
+      ff  <- maybe (return "") showWindow ffx   -- Focused window, if it's floating.
       trace $ "<" ++ i ++ "> tiled: left: "  ++ show lts
                               ++ ", focus: " ++ show ft
                               ++ ", right: " ++ show rts
@@ -64,8 +56,6 @@ traceWorkspace i    = withWindowSet $ \ws -> do
     left            = with [] W.up
     right :: W.StackSet i l a s sd -> [a]
     right           = with [] W.down
-    peek :: W.StackSet i l a s sd -> [a]
-    peek            = with [] ((: []) . W.focus)
 
 -- Log all windows on current workspace.
 traceCurrentWorkspace :: X ()
