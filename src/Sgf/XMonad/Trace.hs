@@ -31,19 +31,21 @@ traceWorkspace :: WorkspaceId -> X ()
 traceWorkspace i    = withWindowSet $ \ws -> do
       let ws' = W.view i ws
           fxs = [x | x <- W.index ws', x `M.member` (W.floating ws')]
+          ffx = [x | x <- peek    ws', x `M.member` (W.floating ws')]
           lxs = [x | x <- left    ws', x `notElem`  fxs]
           rxs = [x | x <- right   ws', x `notElem`  fxs]
-          fx  = [x | x <- peek    ws', x `notElem`  fxs]
+          ftx = [x | x <- peek    ws', x `notElem`  fxs]
           --lxs = [x | x <- W.Stack . W.workspace . W.current
           --txs = [x | x <- xs, x `notElem` fxs]
-      lts <- mapM showWindow lxs
-      ft  <- mapM showWindow fx
-      rts <- mapM showWindow rxs
-      fs  <- mapM showWindow fxs
+      lts <- mapM showWindow lxs    -- Left tiled.
+      ft  <- mapM showWindow ftx    -- Focused window, if it's tiled.
+      rts <- mapM showWindow rxs    -- Right tiled.
+      fs  <- mapM showWindow fxs    -- Floating, except focused.
+      ff  <- mapM showWindow ffx    -- Focused window, if it's floating.
       trace $ "<" ++ i ++ "> tiled: left: "  ++ show lts
                               ++ ", focus: " ++ show ft
                               ++ ", right: " ++ show rts
-      trace $ "<" ++ i ++ "> floating: " ++ show fs
+      trace $ "<" ++ i ++ "> floating: " ++ show fs ++ ", focus: " ++ show ff
   where
     -- Copy `with` from 'XMonad.StackSet', because it's not exported.
     with :: b -> (W.Stack a -> b) -> W.StackSet i l a s sd -> b
