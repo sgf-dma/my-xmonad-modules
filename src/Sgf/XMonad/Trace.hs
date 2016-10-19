@@ -48,10 +48,10 @@ traceWorkspace i    = withWindowSet $ \ws -> do
           --lxs = [x | x <- W.Stack . W.workspace . W.current
           --txs = [x | x <- xs, x `notElem` fxs]
       lts <- mapM showWindow lxs    -- Left tiled.
-      ft  <- maybe (return "\"\"") showWindow ftx    -- Focused window, if it's tiled.
+      ft  <- maybe (return "") showWindow ftx    -- Focused window, if it's tiled.
       rts <- mapM showWindow rxs    -- Right tiled.
       fs  <- mapM showWindow fxs    -- Floating, except focused.
-      ff  <- maybe (return "\"\"") showWindow ffx
+      ff  <- maybe (return "") showWindow ffx
       trace $ "<" ++ i ++ "> tiled: left: "  ++ show lts
                               ++ ", focus: " ++ show ft
                               ++ ", right: " ++ show rts
