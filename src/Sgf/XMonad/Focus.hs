@@ -352,12 +352,12 @@ newOnCur            = asks currentWorkspace >>= newOn
 
 -- Does new window  _NET_ACTIVE_WINDOW activated?
 activated :: FocusQuery Bool
-activated           = liftQuery (liftX XS.get) >>= return . netActivated
+activated           = liftM netActivated (liftQuery (liftX XS.get))
 
 -- Execute Query, unless focus is locked.
 unlessFocusLock :: Monoid a => Query a -> Query a
 unlessFocusLock m   = do
-    FocusLock b <- liftX $ XS.get
+    FocusLock b <- liftX XS.get
     when' (not b) m
 
 -- I don't know on which workspace new window will appear until i actually run
