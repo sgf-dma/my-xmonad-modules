@@ -21,8 +21,12 @@ import qualified XMonad.StackSet as W
 
 
 -- Show window title with id (may be used by `xwininfo -id`).
-showWindow :: Window -> X String
-showWindow w        = do
+showWindow :: Bool -> Window -> X String
+showWindow flb w
+  | flb             = do
+    t <- runQuery title w
+    return ("{'" ++ t ++ "'} - " ++ show w)
+  | otherwise       = do
     t <- runQuery title w
     return ("'" ++ t ++ "' - " ++ show w)
 
