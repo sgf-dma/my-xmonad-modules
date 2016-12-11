@@ -417,7 +417,7 @@ newOnCur            = asks currentWorkspace >>= newOn
 
 -- | Does new window  @_NET_ACTIVE_WINDOW@ activated?
 activated :: FocusQuery Bool
-activated           = liftM netActivated (liftQuery (liftX XS.get))
+activated           = fmap netActivated (liftQuery (liftX XS.get))
 
 -- | Execute Query, unless focus is locked.
 unlessFocusLock :: Monoid a => Query a -> Query a
