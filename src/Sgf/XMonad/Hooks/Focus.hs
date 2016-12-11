@@ -9,7 +9,7 @@
 -- Maintainer:  sgf.dma@gmail.com
 --
 
-module Sgf.XMonad.Focus
+module Sgf.XMonad.Hooks.Focus
     (
       -- $main
 

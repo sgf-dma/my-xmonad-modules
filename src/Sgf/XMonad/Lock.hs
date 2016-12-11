@@ -10,7 +10,7 @@ import System.Process
 import XMonad
 import qualified XMonad.StackSet as W
 
-import Sgf.XMonad.Focus
+import Sgf.XMonad.Hooks.Focus
 import Sgf.XMonad.Util.EZConfig
 
 

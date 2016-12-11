@@ -29,7 +29,7 @@ import Sgf.XMonad.Fullscreen
 import Sgf.XMonad.Pulse
 import Sgf.XMonad.Docks
 import Sgf.XMonad.Restartable
-import Sgf.XMonad.Focus
+import Sgf.XMonad.Hooks.Focus
 import Sgf.XMonad.Util.EntryHelper
 import Sgf.XMonad.Lock
 import Sgf.XMonad.Docks.Xmobar

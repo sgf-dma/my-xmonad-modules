@@ -72,7 +72,7 @@ import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Util.Run
 import Sgf.XMonad.Util.EZConfig
-import Sgf.XMonad.Focus
+import Sgf.XMonad.Hooks.Focus
 
 
 -- To avoid orphan (ExtensionClass [a]) instance, i need newtype.
