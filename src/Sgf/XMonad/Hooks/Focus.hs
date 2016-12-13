@@ -68,8 +68,8 @@ import XMonad
 import qualified XMonad.StackSet as W
 import qualified XMonad.Util.ExtensibleState as XS
 import XMonad.Hooks.ManageHelpers (currentWs)
-import XMonad.Hooks.SetWMName
 
+import Sgf.XMonad.Hooks.SetWMName
 import Sgf.XMonad.X11
 import Sgf.XMonad.Util.EZConfig
 import Sgf.Control.Monad
@@ -548,7 +548,8 @@ activateEventHook _ _   = return (All True)
 -- call it many times - only window name in '_NET_WM_NAME' may change.
 activateStartupHook :: X ()
 activateStartupHook = do
-                        setWMName "xmonad"
+                        wn <- getWMName
+                        when (isNothing wn) (setWMName "xmonad")
                         getAtom "_NET_ACTIVE_WINDOW" >>= addNETSupported
 
 -- | Enable 'FocusHook' handling and set key for toggling focus lock. This is
