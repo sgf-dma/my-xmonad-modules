@@ -32,6 +32,7 @@ import XMonad.Hooks.ManageDocks hiding (docksEventHook)
 import XMonad.Hooks.DynamicLog
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Util.WindowProperties (getProp32s)
+import XMonad.Util.EZConfig (additionalKeys)
 import Foreign.C.Types (CLong)
 
 import Sgf.Control.Lens
@@ -122,7 +123,7 @@ handleDocks mt cf   = addToggleKey $ cf
       }
   where
     addToggleKey :: XConfig l -> XConfig l
-    addToggleKey    = additionalKeys' <*> mt `maybeKey` sendMessage ToggleStruts
+    addToggleKey    = additionalKeys <*> mt `maybeKey` sendMessage ToggleStruts
 
 -- Toggle struts for ProcessClass instance.
 toggleProcessStruts :: ProcessClass a => a -> X ()

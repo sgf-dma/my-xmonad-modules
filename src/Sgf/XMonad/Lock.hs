@@ -9,6 +9,7 @@ import System.Process
 
 import XMonad
 import qualified XMonad.StackSet as W
+import XMonad.Util.EZConfig (additionalKeys)
 
 import Sgf.XMonad.Hooks.Focus
 import Sgf.XMonad.Util.EZConfig
@@ -25,7 +26,7 @@ handleLock mt lockWs anotherWs xcf = addLockKey $ xcf
         }
   where
     addLockKey :: XConfig l -> XConfig l
-    addLockKey      = additionalKeys' <*> mt `maybeKey` lock
+    addLockKey      = additionalKeys <*> mt `maybeKey` lock
 -- Moves away new window from lock workspace regardless of current workspace
 -- and focus.
 manageLock :: WorkspaceId -> (WindowSet -> WorkspaceId) -> ManageHook

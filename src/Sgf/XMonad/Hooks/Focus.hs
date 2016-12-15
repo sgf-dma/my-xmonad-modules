@@ -68,6 +68,7 @@ import XMonad
 import qualified XMonad.StackSet as W
 import qualified XMonad.Util.ExtensibleState as XS
 import XMonad.Hooks.ManageHelpers (currentWs)
+import XMonad.Util.EZConfig
 
 import Sgf.XMonad.Hooks.SetWMName
 import Sgf.XMonad.X11
@@ -577,5 +578,5 @@ handleFocusQuery mt x cf = addLockKey $ cf
     mh :: ManageHook
     mh              = manageFocus x `mappend` manageHook cf
     addLockKey :: XConfig l -> XConfig l
-    addLockKey      = additionalKeys' <*> mt `maybeKey` toggleLock
+    addLockKey      = additionalKeys <*> mt `maybeKey` toggleLock
 

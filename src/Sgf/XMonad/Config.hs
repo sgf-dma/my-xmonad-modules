@@ -11,7 +11,7 @@ module Sgf.XMonad.Config
   where
 
 import Data.Tagged
-import Control.Applicative
+import Control.Monad
 
 import XMonad
 import qualified XMonad.StackSet as W
@@ -23,6 +23,7 @@ import XMonad.Layout.ResizableTile
 import XMonad.Hooks.DynamicLog (PP, shorten, xmobarColor)
 
 import Sgf.Control.Lens
+import Sgf.Control.Applicative
 import Sgf.XMonad.Workspaces
 import Sgf.XMonad.Fullscreen
 import Sgf.XMonad.Pulse
@@ -36,10 +37,8 @@ import Sgf.XMonad.Docks.Trayer
 import Sgf.XMonad.Restartable.Feh
 import Sgf.XMonad.Hooks.ManageHelpers
 import Sgf.XMonad.X11
+import Sgf.XMonad.Util.EZConfig
 
-
-(<.>) :: Applicative f => f (b -> c) -> f (a -> b) -> f (a -> c)
-(<.>) = liftA2 (.)
 
 -- Config for my modules.
 data SessionConfig l = SessionConfig
@@ -65,11 +64,17 @@ session             = let
                       in  others <.> docks <.> defWs <.> mh
   where
     progs :: SessionConfig l -> XConfig l -> XConfig l
-    progs           = handleProgs   <$> programHelpKey <*> programs
+    progs           = go <$> programHelpKey <*> programs
+      where
+        go :: Maybe (ButtonMask, KeySym) -> [ProgConfig l]
+              -> XConfig l -> XConfig l
+        go mk ps    = maybeAddModMask mk >>= flip handleProgs ps
     lock  :: SessionConfig l -> XConfig l -> XConfig l
-    lock            = handleLock    <$> lockKey
-                                    <*> lockWorkspace
-                                    <*> anotherWorkspace
+    lock            = go <$> lockKey <*> lockWorkspace <*> anotherWorkspace
+      where
+        go :: Maybe (ButtonMask, KeySym) -> WorkspaceId
+              -> (WindowSet -> WorkspaceId) -> XConfig l -> XConfig l
+        go mk w f   = maybeAddModMask mk >>= \mk' -> handleLock mk' w f
     focusH :: SessionConfig l -> XConfig l -> XConfig l
     focusH          = go <$> focusLockKey
                          <*> activateFocusHook
@@ -80,14 +85,15 @@ session             = let
         -- `activated`.
         go :: Maybe (ButtonMask, KeySym) -> FocusHook -> FocusHook
               -> XConfig l -> XConfig l
-        go mk af nf = handleFocusQuery mk $
-                        composeOne [activated -?> af, Just <$> nf]
+        go mk af nf = do
+            mk' <- maybeAddModMask mk
+            handleFocusQuery mk' (composeOne [activated -?> af, Just <$> nf])
     defWs  :: SessionConfig l -> XConfig l -> XConfig l
     defWs           = handleDefaultWorkspaces <$> defaultWorkspacesAtStartup
                                               <*> defaultWorkspaces
     docks  :: LayoutClass l Window => SessionConfig l
               -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
-    docks           = handleDocks <$> docksToggleKey
+    docks           = (handleDocks <=< maybeAddModMask) <$> docksToggleKey
     -- Functions not using SessionConfig (note type variable t).
     others :: LayoutClass l Window => SessionConfig t -> XConfig l
               -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) l)
