@@ -67,6 +67,7 @@ import System.Posix.Types (ProcessID)
 import XMonad
 import XMonad.Hooks.ManageHelpers
 import qualified XMonad.Util.ExtensibleState as XS
+import XMonad.Util.EZConfig (additionalKeys)
 
 import Sgf.Data.List
 import Sgf.Control.Lens
@@ -305,7 +306,7 @@ handleProgs mt ps cf = addProgKeys . addShowKey $ cf
     addProgKeys = appEndo $ foldMap (Endo . (appendKeys <*>) . progKeys) ps
     -- Key for showing program launch keys.
     addShowKey :: XConfig l -> XConfig l
-    addShowKey  = additionalKeys' <*> mt `maybeKey` spawn' "xmessage"
+    addShowKey  = additionalKeys <*> mt `maybeKey` spawn' "xmessage"
                     [ "-default", "okay"
                     , unlines . filter (/= "") . map showProgKeys $ ps
                     ]

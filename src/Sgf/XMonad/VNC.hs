@@ -31,7 +31,7 @@ handleVnc :: XConfig l -> IO (XConfig l)
 handleVnc xcf       = do
     b <- isVnc
     if b
-      then return (mapKeys (addModMask (controlMask .|.)) xcf)
+      then return (mapKeys (cloneKeys (controlMask .|.)) xcf)
       else return xcf
 
 -- Try to guess, has xmonad run by VNC server: i'll check whether X11 VNC
