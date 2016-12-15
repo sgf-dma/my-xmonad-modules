@@ -20,7 +20,6 @@ import XMonad.Hooks.ManageDocks (AvoidStruts)
 import XMonad.Layout.NoBorders
 import XMonad.Util.EZConfig
 import XMonad.Layout.ResizableTile
-import XMonad.Hooks.ManageHelpers (isDialog)
 import XMonad.Hooks.DynamicLog (PP, shorten, xmobarColor)
 
 import Sgf.Control.Lens
