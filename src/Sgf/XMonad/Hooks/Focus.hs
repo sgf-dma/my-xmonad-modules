@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
 {-# OPTIONS_HADDOCK show-extensions #-}
 
 -- |
@@ -156,7 +156,7 @@ import Sgf.Control.Monad
 -- >
 -- >    main :: IO ()
 -- >    main = do
--- >            let xcf = handleFocusQuery (Just (0, xK_v)) (composeOne
+-- >            let xcf = handleFocusQuery (Just (mod4Mask, xK_v)) (composeOne
 -- >                            [ activated -?> activateFocusHook
 -- >                            , Just <$> newFocusHook
 -- >                            ])
@@ -182,9 +182,8 @@ import Sgf.Control.Monad
 --
 -- Note:
 --
---  - /mod+v/ key toggles focus lock (when enabled, focus will not be switched
---  to new window). I don't need to specify @modMask@ in lock focus key
---  definition, because 'handleFocusQuery' will add it automatically.
+--  - /mod4Mask+v/ key toggles focus lock (when enabled, focus will not be
+--  switched to new window).
 --  - 'handleFocusQuery' will enable window activation.
 --  - I need more generic 'XMonad.Hooks.ManageHelpers.-?>' and
 --  'XMonad.Hooks.ManageHelpers.composeOne', than in the
@@ -239,7 +238,7 @@ import Sgf.Control.Monad
 -- >
 -- >    main :: IO ()
 -- >    main = do
--- >            let xcf = handleFocusQuery (Just (0, xK_v)) (composeOne
+-- >            let xcf = handleFocusQuery (Just (mod4Mask, xK_v)) (composeOne
 -- >                           [ activated -?> (newOnCur --> keepFocus)
 -- >                           , Just <$> newFocusHook
 -- >                           ])
