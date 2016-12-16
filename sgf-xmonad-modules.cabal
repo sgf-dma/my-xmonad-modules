@@ -26,6 +26,7 @@ library
                        Sgf.XMonad.VNC
                        Sgf.XMonad.Trace
                        Sgf.XMonad.Hooks.Focus
+                       Sgf.XMonad.Hooks.EwmhDesktops
                        Sgf.XMonad.Util.Run
                        Sgf.XMonad.Util.EntryHelper
                        Sgf.XMonad.Util.EZConfig
