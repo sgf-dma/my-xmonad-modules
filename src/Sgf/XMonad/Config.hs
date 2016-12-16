@@ -30,6 +30,7 @@ import Sgf.XMonad.Pulse
 import Sgf.XMonad.Docks
 import Sgf.XMonad.Restartable
 import Sgf.XMonad.Hooks.Focus
+import Sgf.XMonad.Hooks.EwmhDesktops
 import Sgf.XMonad.Util.EntryHelper
 import Sgf.XMonad.Lock
 import Sgf.XMonad.Docks.Xmobar
@@ -87,7 +88,7 @@ session             = let
               -> XConfig l -> XConfig l
         go mk af nf = do
             mk' <- maybeAddModMask mk
-            handleFocusQuery mk' (composeOne [activated -?> af, Just <$> nf])
+            handleFocusQuery mk' (composeOne [liftQuery activated -?> af, Just <$> nf])
     defWs  :: SessionConfig l -> XConfig l -> XConfig l
     defWs           = handleDefaultWorkspaces <$> defaultWorkspacesAtStartup
                                               <*> defaultWorkspaces

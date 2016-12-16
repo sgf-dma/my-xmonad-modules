@@ -19,7 +19,6 @@ module Sgf.XMonad.Hooks.Focus
       Focus (..)
     , FocusLock (..)
     , toggleLock
-    , NetActivated (..)
     , FocusQuery
     , runFocusQuery
     , FocusHook
@@ -37,7 +36,6 @@ module Sgf.XMonad.Hooks.Focus
     , focusedCur'
     , newOn
     , newOnCur
-    , activated
     , unlessFocusLock
 
       -- * Commonly used actions for modifying focus.
@@ -52,8 +50,6 @@ module Sgf.XMonad.Hooks.Focus
       --
       -- $running
     , manageFocus
-    , activateEventHook
-    , activateStartupHook
     , handleFocusQuery
     )
   where
@@ -70,8 +66,6 @@ import qualified XMonad.Util.ExtensibleState as XS
 import XMonad.Hooks.ManageHelpers (currentWs)
 import XMonad.Util.EZConfig
 
-import Sgf.XMonad.Hooks.SetWMName
-import Sgf.XMonad.X11
 import Sgf.XMonad.Util.EZConfig
 import Sgf.Control.Monad
 
@@ -292,15 +286,6 @@ instance ExtensionClass FocusLock where
 toggleLock :: X ()
 toggleLock          = XS.modify (\(FocusLock b) -> FocusLock (not b))
 
--- | Whether new window _NET_ACTIVE_WINDOW activated or not. I should keep
--- this value in global state, because i use 'ManageHook' for handling
--- activated windows and i need a way to tell 'manageHook', that now a window
--- is activated.
-newtype NetActivated    = NetActivated {netActivated :: Bool}
-  deriving (Show)
-instance ExtensionClass NetActivated where
-    initialValue        = NetActivated False
-
 -- | Monad on top of Query providing additional information about new window.
 newtype FocusQuery a = FocusQuery (ReaderT Focus Query a)
 instance Functor FocusQuery where
@@ -378,10 +363,6 @@ newOn i             = (i ==) <$> asks newWorkspace
 -- | Does new window appear at current workspace?
 newOnCur :: FocusQuery Bool
 newOnCur            = asks currentWorkspace >>= newOn
-
--- | Does new window  @_NET_ACTIVE_WINDOW@ activated?
-activated :: FocusQuery Bool
-activated           = fmap netActivated (liftQuery (liftX XS.get))
 
 -- | Execute Query, unless focus is locked.
 unlessFocusLock :: Monoid a => Query a -> Query a
@@ -482,40 +463,6 @@ manageFocus m       = do
         f <- lookup i cfs
         return (appEndo f ws)
 
--- | 'handleEventHook' for handling activated windows according to
--- 'FocusHook'.
-activateEventHook :: ManageHook -> Event -> X All
-activateEventHook x ClientMessageEvent {
-                    ev_window = w,
-                    ev_message_type = mt
-                }   = do
-    a_aw <- getAtom "_NET_ACTIVE_WINDOW"
-    -- 'NetActivated' state handling is done solely and completely here!
-    when (mt == a_aw) $ do
-      XS.put (NetActivated True)
-      runQuery x w >>= windows . appEndo
-      XS.put (NetActivated False)
-    return (All True)
-activateEventHook _ _   = return (All True)
-
--- | 'startupHook' for announcing @_NET_ACTIVE_WINDOW@ in @_NET_SUPPORTED@ and
--- settings @_NET_WM_NAME@.
-
--- 'setWMName' creates support window (don't know why), sets its _NET_WM_NAME
--- to specified value, sets '_NET_SUPPORTING_WM_CHECK' atom of support window
--- and root window to support window id and and adds two atoms
--- '_NET_SUPPORTING_WM_CHECK' and '_NET_WM_NAME' to '_NET_SUPPORTED' atom of
--- root window (removing any duplicates). And this is required (apart from
--- adding '_NET_ACTIVE_WINDOW' to '_NET_SUPPORTED') for making
--- window activation work. Also, 'setWMName' checks window pointed by
--- '_NET_SUPPORTING_WM_CHECK' before creating support window, so it's safe to
--- call it many times - only window name in '_NET_WM_NAME' may change.
-activateStartupHook :: X ()
-activateStartupHook = do
-                        wn <- getWMName
-                        when (isNothing wn) (setWMName "xmonad")
-                        getAtom "_NET_ACTIVE_WINDOW" >>= addNETSupported
-
 -- | Enable 'FocusHook' handling and set key for toggling focus lock. This is
 -- recommended way for using 'FocusHook'.
 handleFocusQuery :: Maybe (ButtonMask, KeySym)  -- ^ Key to toggle focus lock.
@@ -527,9 +474,6 @@ handleFocusQuery mt x cf = addLockKey $ cf
     -- is function composition, i should add in Monoid to the left, but in
     -- 'handleEventHook', which runs actions from left to right, to the right!
     { manageHook        = mh
-    , handleEventHook   = handleEventHook cf `mappend` activateEventHook mh
-    -- Note, the order: i make my changes after user's changes here too.
-    , startupHook       = startupHook cf >> activateStartupHook
     }
   where
     -- Note, 'manageHook' should /not/ touch 'NetActivated' state value at
