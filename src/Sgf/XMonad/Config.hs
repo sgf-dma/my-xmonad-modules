@@ -86,9 +86,15 @@ session             = let
         -- `activated`.
         go :: Maybe (ButtonMask, KeySym) -> FocusHook -> FocusHook
               -> XConfig l -> XConfig l
-        go mk af nf = do
-            mk' <- maybeAddModMask mk
-            handleFocusQuery mk' (composeOne [liftQuery activated -?> af, Just <$> nf])
+        go mk af nf cf = addLockKey $ cf
+            {manageHook = mh `mappend` manageHook cf}
+          where
+            mh :: ManageHook
+            mh          = manageFocus $
+                            composeOne [liftQuery activated -?> af, Just <$> nf]
+            addLockKey :: XConfig l -> XConfig l
+            addLockKey  = additionalKeys <*>
+                            (maybeAddModMask mk >>= flip maybeKey toggleLock)
     defWs  :: SessionConfig l -> XConfig l -> XConfig l
     defWs           = handleDefaultWorkspaces <$> defaultWorkspacesAtStartup
                                               <*> defaultWorkspaces

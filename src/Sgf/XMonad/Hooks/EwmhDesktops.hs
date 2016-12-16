@@ -51,7 +51,36 @@ import qualified XMonad.Util.ExtensibleState as XS
 -- >            handleEventHook def <+> fullscreenEventHook }
 --
 -- You may also be interested in 'docks' from "XMonad.Hooks.ManageDocks".
-
+--
+-- __/WARNING!/__ 'ewmh' function will use 'manageHook' for handling activated
+-- window. That means, actions, which you don't want to happen on activated
+-- windows, should be guarded by
+--
+-- > not <$> activated
+--
+-- predicate.
+--
+-- And now by default window activation will do nothing: neither switch
+-- workspace, nor focus. You can use regular 'ManageHook' combinators for
+-- changing window activation behavior. Also, you may be interested in
+-- "XMonad.Hooks.Focus", which provides additional predicates for using in
+-- 'ManageHook'.
+--
+-- To get back old 'ewmh' window activation behavior (switch workspace and
+-- focus to activated window) you may use:
+--
+-- > import XMonad
+-- >
+-- > import XMonad.Hooks.EwmhDesktops
+-- > import XMonad.Hooks.ManageHelpers
+-- > import XMonad.Hooks.Focus
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >         let fh :: ManageHook
+-- >             fh = manageFocus (liftQuery activated --> switchWorkspace <+> switchFocus)
+-- >             xcf = ewmh $ def {modMask = mod4Mask, manageHook = fh}
+-- >         xmonad xcf
 
 -- | Add EWMH functionality to the given config.  See above for an example.
 ewmh :: XConfig a -> XConfig a
@@ -140,7 +169,7 @@ newtype NetActivated    = NetActivated {netActivated :: Bool}
 instance ExtensionClass NetActivated where
     initialValue        = NetActivated False
 
--- | Does new window  @_NET_ACTIVE_WINDOW@ activated?
+-- | Was new window @_NET_ACTIVE_WINDOW@ activated?
 activated :: Query Bool
 activated           = fmap netActivated (liftX XS.get)
 
