@@ -144,8 +144,8 @@ trayer :: Trayer
 trayer              = setA (trayerProg . progWait) 300000
                         . modifyA (trayerProg . progArgs . trayerArgs)
                           (++ [ "--edge", "top", "--align", "right"
-                              , "--width", "10", "--height", "12"
-                              , "--transparent", "true" , "--tint", "0x191970"
+                              , "--width", "10", "--height", "24"
+                              , "--transparent", "true" , "--alpha", "0", "--tint", "0xc0c0c0"
                               , "--expand", "true"
                               ])
                         $ defaultTrayer
