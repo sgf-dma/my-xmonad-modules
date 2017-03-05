@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveDataTypeable     #-}
+
 -----------------------------------------------------------------------------
 -- |
 -- Module       : XMonad.Hooks.EwmhDesktops
@@ -165,7 +167,7 @@ ewmhDesktopsEventHookCustom f e = handle f e >> return (All True)
 -- activated windows and i need a way to tell 'manageHook', that now a window
 -- is activated.
 newtype NetActivated    = NetActivated {netActivated :: Bool}
-  deriving (Show)
+  deriving (Show, Typeable)
 instance ExtensionClass NetActivated where
     initialValue        = NetActivated False
 

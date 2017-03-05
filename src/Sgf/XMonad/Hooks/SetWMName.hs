@@ -1,7 +1,7 @@
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  XMonad.Hooks.SetWMName
--- Copyright   :  © 2007 Ivan Tarasov <Ivan.Tarasov@gmail.com>, 2016 sgf-dma <sgf.dma@gmail.com>
+-- Copyright   :  © 2007 Ivan Tarasov <Ivan.Tarasov@gmail.com>
 -- License     :  BSD
 --
 -- Maintainer  :  Ivan.Tarasov@gmail.com
@@ -45,6 +45,7 @@ import Control.Monad (guard, join)
 import Data.Char (ord)
 import Data.List (nub)
 import Data.Maybe (listToMaybe, maybeToList)
+import qualified Data.Traversable as T
 import Foreign.C.Types (CChar)
 
 import Foreign.Marshal.Alloc (alloca)
@@ -67,12 +68,12 @@ getSupportWindow    = withDisplay $ \dpy -> do
     root <- asks theRoot
     mw <- fmap (fmap fromIntegral . join . fmap listToMaybe) $ liftIO
             $ getWindowProperty32 dpy at root
-    mb <- mapM isValidWindow mw
+    mb <- T.mapM isValidWindow mw
     return (mb >>= guard >> mw)
 
 -- | Get WM name.
 getWMName :: X (Maybe String)
-getWMName           = getSupportWindow >>= mapM (runQuery title)
+getWMName           = getSupportWindow >>= T.mapM (runQuery title)
 
 -- | sets WM name
 setWMName :: String -> X ()
@@ -113,4 +114,3 @@ setWMName name = do
         io $ mapWindow dpy window   -- not sure if this is needed
         io $ lowerWindow dpy window -- not sure if this is needed
         return window
-
