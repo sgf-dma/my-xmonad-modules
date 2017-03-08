@@ -34,5 +34,7 @@ handleFullscreen cf = cf
 fullscreenStartupHook :: X ()
 fullscreenStartupHook   = do
                             setWMName "xmonad"
-                            getAtom "_NET_WM_STATE_FULLSCREEN" >>= addNETSupported
+                            wms <- getAtom "_NET_WM_STATE"
+                            wmf <- getAtom "_NET_WM_STATE_FULLSCREEN"
+                            mapM_ addNETSupported [wms, wmf]
 
