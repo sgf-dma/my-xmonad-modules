@@ -28,7 +28,7 @@ import Control.Applicative
 
 import XMonad
 import qualified XMonad.StackSet as W
-import XMonad.Hooks.ManageDocks hiding (docksEventHook)
+import XMonad.Hooks.ManageDocks
 import XMonad.Hooks.DynamicLog
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Util.WindowProperties (getProp32s)
@@ -154,17 +154,6 @@ getStrut w = do
         [(L, l, ly1, ly2), (R, r, ry1, ry2), (U, t, tx1, tx2), (D, b, bx1, bx2)]
     parseStrutPartial _ = []
 -- End copy from XMonad.Hooks.ManageDocks .
-
--- docksEventHook version from xmobar tutorial (5.3.1 "Example for using the
--- DBus IPC interface with XMonad"), which refreshes screen on unmap events as
--- well.
-docksEventHook :: Event -> X All
-docksEventHook e = do
-    when (et == mapNotify || et == unmapNotify) $
-        whenX ((not `fmap` isClient w) <&&> runQuery checkDock w) refresh
-    return (All True)
-    where w  = ev_window e
-          et = ev_event_type e
 
 dockLog :: DockClass a => a ->  X ()
 dockLog y           = do
