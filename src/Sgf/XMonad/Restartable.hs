@@ -74,6 +74,7 @@ import Sgf.Control.Lens
 import Sgf.XMonad.Util.Run
 import Sgf.XMonad.Util.EZConfig
 import Sgf.XMonad.Hooks.EwmhDesktops
+import Sgf.XMonad.X11
 
 
 -- To avoid orphan (ExtensionClass [a]) instance, i need newtype.
@@ -270,7 +271,9 @@ launchProg x (XConfig {modMask = m}) = do
 -- current Window pid (from _NET_WM_PID) matches pid of any program with the
 -- same type stored in Extensible State.
 manageProg :: RestartClass a => a -> MaybeManageHook
-manageProg y        = liftX (getProcess y) >>= manageProcess (manageP y)
+manageProg y        = do
+    raiseNew
+    liftX (getProcess y) >>= manageProcess (manageP y)
 
 -- Merge ProgConfig-s into existing XConfig properly and add key for showing
 -- program launch keys.

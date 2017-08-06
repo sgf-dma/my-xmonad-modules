@@ -2,6 +2,7 @@
 module Sgf.XMonad.X11
     ( resetNETSupported
     , addNETSupported
+    , raiseNew
     )
   where
 
@@ -30,3 +31,8 @@ addNETSupported x   = withDisplay $ \dpy -> do
       when (fromIntegral x `notElem` sup) $
         changeProperty32 dpy r a_NET_SUPPORTED a propModeAppend [fromIntegral x]
 
+raiseNew :: Query ()
+raiseNew            = ask >>= liftX . go
+  where
+    go :: Window -> X ()
+    go w            = withDisplay (liftIO . flip raiseWindow w)
