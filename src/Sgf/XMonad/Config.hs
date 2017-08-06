@@ -101,13 +101,21 @@ session             = let
     docks  :: LayoutClass l Window => SessionConfig l
               -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
     docks           = (handleDocks <=< maybeAddModMask) <$> docksToggleKey
-    -- Functions not using SessionConfig (note type variable t).
+    -- Functions not using SessionConfig (note type variable t). Note, that
+    -- 'raiseNewWindows' should be applied /the last/ (see its description).
     others :: LayoutClass l Window => SessionConfig t -> XConfig l
               -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) l)
-    others          = pure $ handleFullscreen
+    others          = pure $ raiseNewWindows
+                        . handleFullscreen
                         . handleRecompile
                         . handlePulse
                         . handleEwmh
+
+-- Raise all new windows on top of X stack. 'raiseNew' should be /first/ in
+-- 'ManageHook' to allow following functions to override window placement in X
+-- stack (e.g. 'addDock' will lower its window).
+raiseNewWindows :: XConfig l -> XConfig l
+raiseNewWindows xcf = xcf {manageHook = raiseNew >> manageHook xcf}
 
 -- Reset _NET_SUPPORTED, so atoms added by display manager won't be inherited.
 -- If xmonad needs any of them, i should add them explicitly.
