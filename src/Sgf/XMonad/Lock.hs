@@ -36,11 +36,22 @@ manageLock :: WorkspaceId                   -- Lock workspace name.
               -> ManageHook
 manageLock lockWs anotherWs = manageFocus (newOn lockWs --> moveTo anotherWs)
 
+-- | Move new window to another workspace determined by a supplied function.
 moveTo :: (WindowSet -> WorkspaceId) -> FocusHook
-moveTo anotherWs    = new $ asks pure >>= doF . (shiftWin <*> anotherWs <*>)
-  where
-    shiftWin :: WindowSet -> WorkspaceId -> Window -> WindowSet
-    shiftWin ws i w = W.shiftWin i w ws
+moveTo anotherWp    = do
+    -- Determine another workspace _before_ running 'ManageHook'. That
+    -- guarantees, that 'keepFocusOn' and 'shiftWin' will use the _same_
+    -- another workspace.
+    awp <- liftQuery . liftX $ withWindowSet (pure . anotherWp)
+    keepFocusOn awp <+> (new $ ask >>= doF . W.shiftWin awp)
+
+-- | Version of 'keepFocus' for working on a focused window on specific
+-- workspace. Note, that focused window is determined _before_ running pure
+-- 'ManageHook' function (i.e. in original 'WindowSet'), see the 'focusedOn''
+-- implementation.
+keepFocusOn :: WorkspaceId -> FocusHook
+keepFocusOn i       = focusedOn' i $ ask >>= \w -> doF $ \ws ->
+                        W.view (W.currentTag ws) . W.focusWindow w $ ws
 
 -- FIXME: When i wait for xtrlock process to terminate, i always come back to
 -- old workpace, where i was before pressing lock keys (regardless of
