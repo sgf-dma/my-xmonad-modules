@@ -22,16 +22,16 @@ module Sgf.XMonad.Docks
 
 import Data.Maybe
 import Data.List
-import Data.Monoid
 import Control.Monad.State
 import Control.Applicative
 
 import XMonad
 import qualified XMonad.StackSet as W
-import XMonad.Hooks.ManageDocks hiding (docksEventHook)
+import XMonad.Hooks.ManageDocks
 import XMonad.Hooks.DynamicLog
 import XMonad.Layout.LayoutModifier (ModifiedLayout)
 import XMonad.Util.WindowProperties (getProp32s)
+import XMonad.Util.EZConfig (additionalKeys)
 import Foreign.C.Types (CLong)
 
 import Sgf.Control.Lens
@@ -112,17 +112,12 @@ toggleDock x XConfig {modMask = m} = maybeToList $ do
 -- (Struts) of all docks.
 handleDocks :: LayoutClass l Window => Maybe (ButtonMask, KeySym)
                -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
-handleDocks mt cf   = addToggleKey $ cf
-      -- First, de-manage dock applications.
-      { manageHook = manageDocks <+> manageHook cf
-      -- Then refresh screens after new dock appears.
-      , handleEventHook = docksEventHook <+> handleEventHook cf
+handleDocks mt cf   = addToggleKey . docks $ cf
       -- Reduce Rectangle available for other windows according to Struts.
-      , layoutHook = avoidStruts (layoutHook cf)
-      }
+      { layoutHook = avoidStruts (layoutHook cf) }
   where
     addToggleKey :: XConfig l -> XConfig l
-    addToggleKey    = additionalKeys' <*> mt `maybeKey` sendMessage ToggleStruts
+    addToggleKey    = additionalKeys <*> mt `maybeKey` sendMessage ToggleStruts
 
 -- Toggle struts for ProcessClass instance.
 toggleProcessStruts :: ProcessClass a => a -> X ()
@@ -153,17 +148,6 @@ getStrut w = do
         [(L, l, ly1, ly2), (R, r, ry1, ry2), (U, t, tx1, tx2), (D, b, bx1, bx2)]
     parseStrutPartial _ = []
 -- End copy from XMonad.Hooks.ManageDocks .
-
--- docksEventHook version from xmobar tutorial (5.3.1 "Example for using the
--- DBus IPC interface with XMonad"), which refreshes screen on unmap events as
--- well.
-docksEventHook :: Event -> X All
-docksEventHook e = do
-    when (et == mapNotify || et == unmapNotify) $
-        whenX ((not `fmap` isClient w) <&&> runQuery checkDock w) refresh
-    return (All True)
-    where w  = ev_window e
-          et = ev_event_type e
 
 dockLog :: DockClass a => a ->  X ()
 dockLog y           = do

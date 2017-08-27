@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 module Sgf.XMonad.Config
     ( SessionConfig (..)
@@ -10,8 +11,8 @@ module Sgf.XMonad.Config
     )
   where
 
+import Data.Monoid
 import Data.Tagged
-import Control.Applicative
 
 import XMonad
 import qualified XMonad.StackSet as W
@@ -20,8 +21,10 @@ import XMonad.Hooks.ManageDocks (AvoidStruts)
 import XMonad.Layout.NoBorders
 import XMonad.Util.EZConfig
 import XMonad.Layout.ResizableTile
-import XMonad.Hooks.ManageHelpers (isDialog)
 import XMonad.Hooks.DynamicLog (PP, shorten, xmobarColor)
+import XMonad.Hooks.ManageHelpers
+import XMonad.Hooks.EwmhDesktops
+import XMonad.Hooks.Focus
 
 import Sgf.Control.Lens
 import Sgf.XMonad.Workspaces
@@ -29,18 +32,14 @@ import Sgf.XMonad.Fullscreen
 import Sgf.XMonad.Pulse
 import Sgf.XMonad.Docks
 import Sgf.XMonad.Restartable
-import Sgf.XMonad.Focus
 import Sgf.XMonad.Util.EntryHelper
 import Sgf.XMonad.Lock
 import Sgf.XMonad.Docks.Xmobar
 import Sgf.XMonad.Docks.Trayer
 import Sgf.XMonad.Restartable.Feh
-import Sgf.XMonad.Hooks.ManageHelpers
 import Sgf.XMonad.X11
+import Sgf.XMonad.Util.EZConfig
 
-
-(<.>) :: Applicative f => f (b -> c) -> f (a -> b) -> f (a -> c)
-(<.>) = liftA2 (.)
 
 -- Config for my modules.
 data SessionConfig l = SessionConfig
@@ -49,50 +48,55 @@ data SessionConfig l = SessionConfig
                         , docksToggleKey    :: Maybe (ButtonMask, KeySym)
                         , defaultWorkspacesAtStartup :: Bool
                         , defaultWorkspaces :: WorkspaceId -> Bool
-                        , activateFocusHook :: FocusHook
-                        , newFocusHook      :: FocusHook
+                        , activateFocusHook :: ManageHook
+                        , newFocusHook      :: ManageHook
                         , focusLockKey      :: Maybe (ButtonMask, KeySym)
                         , lockWorkspace     :: WorkspaceId
                         , anotherWorkspace  :: WindowSet -> WorkspaceId
                         , lockKey           :: Maybe (ButtonMask, KeySym)
                         }
-session :: LayoutClass l Window => SessionConfig l -> XConfig l
+session :: forall l. LayoutClass l Window => SessionConfig l -> XConfig l
            -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) (ModifiedLayout AvoidStruts l))
-session             = let
-                      -- `handleProgs` and `handleLock` may change new window
-                      -- placement (workspace), so i should apply
-                      -- `handleFocusQuery` after them.
-                          mh = focusH <.> lock <.> progs
-                      in  others <.> docks <.> defWs <.> mh
+session SessionConfig{..}   =
+                      let
+                      -- 'handleProgs' may change new window placement
+                      -- (workspace), so i should apply 'FocusHook' after
+                      -- them.
+                          mh = focusH . lock . progs
+                      in  others . docks . defWs . mh
   where
-    progs :: SessionConfig l -> XConfig l -> XConfig l
-    progs           = handleProgs   <$> programHelpKey <*> programs
-    lock  :: SessionConfig l -> XConfig l -> XConfig l
-    lock            = handleLock    <$> lockKey
-                                    <*> lockWorkspace
-                                    <*> anotherWorkspace
-    focusH :: SessionConfig l -> XConfig l -> XConfig l
-    focusH          = go <$> focusLockKey
-                         <*> activateFocusHook
-                         <*> newFocusHook
-      where
-        -- Note, the order: FocusHook without `activated` predicate will match
-        -- to activated windows too, thus i should place it after one with
-        -- `activated`.
-        go :: Maybe (ButtonMask, KeySym) -> FocusHook -> FocusHook
-              -> XConfig l -> XConfig l
-        go mk af nf = handleFocusQuery mk $
-                        composeOne [activated -?> af, Just <$> nf]
-    defWs  :: SessionConfig l -> XConfig l -> XConfig l
-    defWs           = handleDefaultWorkspaces <$> defaultWorkspacesAtStartup
-                                              <*> defaultWorkspaces
-    docks  :: LayoutClass l Window => SessionConfig l
-              -> XConfig l -> XConfig (ModifiedLayout AvoidStruts l)
-    docks           = handleDocks <$> docksToggleKey
+    progs :: XConfig l -> XConfig l
+    progs           = maybeAddModMask programHelpKey >>=
+                        flip handleProgs programs
+    lock  :: forall t. XConfig t -> XConfig t
+    lock            = maybeAddModMask lockKey >>=
+                        flip handleLock lockWorkspace
+    focusH :: forall t. XConfig t -> XConfig t
+    focusH cf       = addLockKey $
+            cf  { logHook    = do
+                    activateLogHook $
+                        manageLockHook <> activateFocusHook
+                    logHook cf
+                , manageHook = manageLockHook <> newFocusHook <> manageHook cf
+                }
+          where
+            manageLockHook :: ManageHook
+            manageLockHook = manageLock lockWorkspace anotherWorkspace
+            addLockKey :: XConfig t -> XConfig t
+            addLockKey  = additionalKeys <*>
+                            (maybeAddModMask focusLockKey >>=
+                             flip maybeKey toggleLock)
+    defWs  :: forall t. XConfig t -> XConfig t
+    defWs           = handleDefaultWorkspaces
+                        defaultWorkspacesAtStartup
+                        defaultWorkspaces
+    docks  :: forall t. LayoutClass t Window =>
+              XConfig t -> XConfig (ModifiedLayout AvoidStruts t)
+    docks           = maybeAddModMask docksToggleKey >>= handleDocks
     -- Functions not using SessionConfig (note type variable t).
-    others :: LayoutClass l Window => SessionConfig t -> XConfig l
-              -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) l)
-    others          = pure $ handleFullscreen
+    others :: forall t. LayoutClass t Window => XConfig t
+              -> XConfig (ModifiedLayout (ConfigurableBorder Ambiguity) t)
+    others          = handleFullscreen
                         . handleRecompile
                         . handlePulse
                         . handleEwmh
@@ -100,7 +104,11 @@ session             = let
 -- Reset _NET_SUPPORTED, so atoms added by display manager won't be inherited.
 -- If xmonad needs any of them, i should add them explicitly.
 handleEwmh :: XConfig l -> XConfig l
-handleEwmh xcf      = xcf {startupHook = resetNETSupported >> startupHook xcf}
+handleEwmh cf       = let cf' = ewmh cf
+                      in  cf'   { startupHook = do
+                                    resetNETSupported
+                                    startupHook cf'
+                                }
 
 defDocks :: [ProgConfig l]
 defDocks            = addDock trayer : map addDock [xmobar, xmobarAlt]
@@ -132,8 +140,8 @@ trayer :: Trayer
 trayer              = setA (trayerProg . progWait) 300000
                         . modifyA (trayerProg . progArgs . trayerArgs)
                           (++ [ "--edge", "top", "--align", "right"
-                              , "--width", "10", "--height", "12"
-                              , "--transparent", "true" , "--tint", "0x191970"
+                              , "--width", "10", "--height", "24"
+                              , "--transparent", "true" , "--alpha", "0", "--tint", "0xc0c0c0"
                               , "--expand", "true"
                               ])
                         $ defaultTrayer
@@ -153,7 +161,7 @@ instance Default (SessionConfig l) where
             , docksToggleKey    = Just (0, xK_b)
             , defaultWorkspacesAtStartup = False
             , defaultWorkspaces = (`elem` ["7"])
-            , activateFocusHook = composeAll
+            , activateFocusHook = manageFocus $ composeAll
                 -- If `gmrun` is focused on workspace, on which activated
                 -- window is, keep focus unchanged. But i may still switch
                 -- workspace.
@@ -167,7 +175,7 @@ instance Default (SessionConfig l) where
                 -- and focus.
                 , return True   --> switchWorkspace <+> switchFocus
                 ]
-            , newFocusHook      = composeOne
+            , newFocusHook      = manageFocus $ composeOne
                 -- Always switch focus to `gmrun`.
                 [ new (className =? "Gmrun")        -?> switchFocus
                 -- And always keep focus on `gmrun`. Note, that another

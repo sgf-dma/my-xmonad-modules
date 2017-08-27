@@ -67,12 +67,12 @@ import System.Posix.Types (ProcessID)
 import XMonad
 import XMonad.Hooks.ManageHelpers
 import qualified XMonad.Util.ExtensibleState as XS
+import XMonad.Util.EZConfig (additionalKeys)
 
 import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Util.Run
 import Sgf.XMonad.Util.EZConfig
-import Sgf.XMonad.Focus
 
 
 -- To avoid orphan (ExtensionClass [a]) instance, i need newtype.
@@ -305,7 +305,7 @@ handleProgs mt ps cf = addProgKeys . addShowKey $ cf
     addProgKeys = appEndo $ foldMap (Endo . (appendKeys <*>) . progKeys) ps
     -- Key for showing program launch keys.
     addShowKey :: XConfig l -> XConfig l
-    addShowKey  = additionalKeys' <*> mt `maybeKey` spawn' "xmessage"
+    addShowKey  = additionalKeys <*> mt `maybeKey` spawn' "xmessage"
                     [ "-default", "okay"
                     , unlines . filter (/= "") . map showProgKeys $ ps
                     ]
@@ -423,7 +423,7 @@ programKillP progL  = modifyAA progL killP
 programManageP :: Arguments b => LensA a (Program b) -> a -> ManageHook
 programManageP progL x
   | null w          = idHook
-  | otherwise       =manageFocus (not <$> activated --> new (doShift w))
+  | otherwise       = doShift w
   where
     w :: WorkspaceId
     w               = viewA (progL . progWorkspace) x
