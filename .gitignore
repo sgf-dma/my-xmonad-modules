@@ -6,6 +6,7 @@ t.*
 # Build system's directories.
 dist/
 .stack-work/
+sgf-xmonad-modules.cabal
 
 # Any other..
 nohup.out
