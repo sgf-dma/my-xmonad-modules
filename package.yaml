@@ -1,0 +1,29 @@
+name:       sgf-xmonad-modules
+version:    '1.3.0'
+synopsis:   sgf's xmonad modules
+category:   Graphics
+author:     sgf
+maintainer: sgf.dma@gmail.com
+license:    BSD3
+github:     sgf-dma/sgf-xmonad-modules
+
+dependencies:
+- base
+- mtl
+- transformers
+- tagged
+- filepath
+- directory
+- unix
+- containers
+- process
+- utf8-string
+- X11
+- xmonad
+- xmonad-contrib
+- xmonad-entryhelper
+- sgf-haskell-common
+ghc-options: -Wall
+
+library:
+  source-dirs: src
