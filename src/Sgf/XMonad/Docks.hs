@@ -22,7 +22,6 @@ module Sgf.XMonad.Docks
 
 import Data.Maybe
 import Data.List
-import Data.Monoid
 import Control.Monad.State
 import Control.Applicative
 

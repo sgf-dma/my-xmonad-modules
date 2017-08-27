@@ -73,7 +73,6 @@ import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Util.Run
 import Sgf.XMonad.Util.EZConfig
-import Sgf.XMonad.Hooks.EwmhDesktops
 
 
 -- To avoid orphan (ExtensionClass [a]) instance, i need newtype.
@@ -424,7 +423,7 @@ programKillP progL  = modifyAA progL killP
 programManageP :: Arguments b => LensA a (Program b) -> a -> ManageHook
 programManageP progL x
   | null w          = idHook
-  | otherwise       = not <$> activated --> doShift w
+  | otherwise       = doShift w
   where
     w :: WorkspaceId
     w               = viewA (progL . progWorkspace) x
