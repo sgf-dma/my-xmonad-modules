@@ -1,7 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Sgf.XMonad.Restartable.Firefox
-    ( FirefoxArgs
+    ( FirefoxProfile (..)
+    , FirefoxArgs
     , firefoxProfile
     , firefoxNoRemote
     , firefoxNewInstance
@@ -17,13 +18,16 @@ import Sgf.Data.List
 import Sgf.Control.Lens
 import Sgf.XMonad.Restartable
 
+data FirefoxProfile = FfProfileManager
+                    | FfProfile String
+  deriving (Show, Read, Typeable, Eq)
 data FirefoxArgs    = FirefoxArgs
-                        { _firefoxProfile       :: String
+                        { _firefoxProfile       :: FirefoxProfile
                         , _firefoxNoRemote      :: Bool
-                        , _firefoxNewInstance   :: Bool 
+                        , _firefoxNewInstance   :: Bool
                         }
   deriving (Show, Read, Typeable)
-firefoxProfile :: LensA FirefoxArgs String
+firefoxProfile :: LensA FirefoxArgs FirefoxProfile
 firefoxProfile f z@FirefoxArgs {_firefoxProfile = x}
                     = fmap (\x' -> z{_firefoxProfile = x'}) (f x)
 firefoxNoRemote :: LensA FirefoxArgs Bool
@@ -36,16 +40,18 @@ instance Eq FirefoxArgs where
     (==)            = (==) `on` viewA firefoxProfile
 instance Arguments FirefoxArgs where
     serialize x     = do
-                        let xp = viewA firefoxProfile x
-                            xr = viewA firefoxNoRemote x
+                        let xr = viewA firefoxNoRemote x
                             xi = viewA firefoxNewInstance x
+                            xp = case (viewA firefoxProfile x) of
+                                  FfProfile p -> unless' (null p) ["-P", p]
+                                  FfProfileManager  -> ["-ProfileManager"]
                         fmap concat . sequence $
-                          [ unless' (null xp) (return ["-P", xp])
+                          [ return xp
                           , when'    xr       (return ["--no-remote"])
                           , when'    xi       (return ["--new-instance"])
                           ]
     defaultArgs     = FirefoxArgs
-                        { _firefoxProfile       = "default"
+                        { _firefoxProfile       = FfProfile "default"
                         , _firefoxNoRemote      = False
                         , _firefoxNewInstance   = True
                         }
