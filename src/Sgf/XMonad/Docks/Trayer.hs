@@ -10,6 +10,7 @@ module Sgf.XMonad.Docks.Trayer
   where
 
 import Data.Typeable
+import XMonad.Util.Types
 
 import Sgf.Control.Lens
 import Sgf.XMonad.Restartable
@@ -17,7 +18,12 @@ import Sgf.XMonad.Docks
 
 -- I do not need any comparison or interpretation for trayer arguments, so i
 -- just wrap [String].
-newtype TrayerArgs  = TrayerArgs {_trayerArgs :: [String]}
+data TrayerArgs     = TrayerArgs
+                        { _tryaerEdge   :: Direction2D
+                        , _trayerAlign  :: Direction1D
+                        , _trayerWidth  :: Int
+                        , _trayerHeight :: Int
+                        }
   deriving (Show, Read, Typeable)
 trayerArgs :: LensA TrayerArgs [String]
 trayerArgs f z@TrayerArgs {_trayerArgs = x}
