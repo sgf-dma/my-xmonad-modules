@@ -39,8 +39,10 @@ trayerProg f z@Trayer {_trayerProg = x}
                     = fmap (\x' -> z{_trayerProg = x'}) (f x)
 defaultTrayer :: Trayer
 defaultTrayer       = Trayer $ setA progBin "trayer" defaultProgram
+instance Semigroup Trayer where
+    Trayer x <> Trayer y = Trayer (x <> y)
 instance Monoid Trayer where
-    (Trayer x) `mappend` (Trayer y) = Trayer (x `mappend` y)
+    mappend         = (<>)
     mempty          = Trayer mempty
 instance ProcessClass Trayer where
     pidL f (Trayer x)   = Trayer <$> pidL f x

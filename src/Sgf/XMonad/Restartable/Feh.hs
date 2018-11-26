@@ -33,8 +33,10 @@ fehBg f z@Feh {_fehBg = x}
 defaultFeh :: Feh
 defaultFeh          = Feh {_fehProg = defaultShell, _fehBg = ".fehbg"}
 
+instance Semigroup Feh where
+    x <> y          = modifyA fehProg (viewA fehProg x <>) y
 instance Monoid Feh where
-    x `mappend` y   = modifyA fehProg (viewA fehProg x `mappend`) y
+    mappend         = (<>)
     mempty          = defaultFeh
 instance ProcessClass Feh where
     pidL            = fehProg . pidL

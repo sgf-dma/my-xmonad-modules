@@ -445,8 +445,10 @@ programModifyPATH progL = return . Just .  maybe id const
 instance Eq a => Eq (Program a) where
     x == y          =      viewA progBin  x == viewA progBin  y
                         && viewA progArgs x == viewA progArgs y
+instance Arguments a => Semigroup (Program a) where
+    x <> y          = setA progPid (viewA progPid x) y
 instance Arguments a => Monoid (Program a) where
-    x `mappend` y   = setA progPid (viewA progPid x) y
+    mappend         = (<>)
     mempty          = defaultProgram
 instance (Arguments a, Typeable a, Show a, Read a, Eq a)
          => ProcessClass (Program a) where

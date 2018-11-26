@@ -144,8 +144,10 @@ instance Eq Xmobar where
 -- Just use second argument, but *merge* Program records. I need to mappend
 -- Program records, because Program may contain some fields, which i don't
 -- know how to merge or don't know about them at all.
+instance Semigroup Xmobar where
+    x <> y          = modifyA xmobarProg (viewA xmobarProg x <>) y
 instance Monoid Xmobar where
-    x `mappend` y   = modifyA xmobarProg (viewA xmobarProg x `mappend`) y
+    mappend         = (<>)
     mempty          = defaultXmobar
 instance ProcessClass Xmobar where
     pidL            = xmobarProg . pidL
