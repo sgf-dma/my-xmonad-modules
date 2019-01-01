@@ -11,3 +11,5 @@ sgf-xmonad-modules.cabal
 # Any other..
 nohup.out
 xmonad.errors
+
+.*.sw*

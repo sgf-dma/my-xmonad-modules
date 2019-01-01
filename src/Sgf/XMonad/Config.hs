@@ -11,7 +11,6 @@ module Sgf.XMonad.Config
     )
   where
 
-import Data.Monoid
 import Data.Tagged
 
 import XMonad

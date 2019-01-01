@@ -1,5 +1,5 @@
 name:       sgf-xmonad-modules
-version:    '1.4.0'
+version:    '1.5.0'
 synopsis:   sgf's xmonad modules
 category:   Graphics
 author:     sgf
@@ -20,6 +20,7 @@ dependencies:
 - utf8-string
 - X11
 - xmonad
+- string-transform
 - xmonad-contrib
 - xmonad-entryhelper
 - sgf-haskell-common

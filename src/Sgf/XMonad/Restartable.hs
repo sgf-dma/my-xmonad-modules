@@ -57,6 +57,7 @@ import Data.List
 import Data.Maybe
 import Data.Typeable
 import Data.Monoid
+import Data.String.Transform
 import Control.Monad
 import Control.Exception (try, IOException)
 import Control.Concurrent (threadDelay)
@@ -325,6 +326,9 @@ data NoArgs         = NoArgs
 instance Arguments NoArgs where
     serialize _     = return []
     defaultArgs     = NoArgs
+instance ToString a => Arguments [a] where
+    serialize x     = return (map toString x)
+    defaultArgs     = []
 
 -- Default program providing set of fields needed for regular program and
 -- default runP implementation.  Note: when using newtypes around Program
@@ -445,8 +449,10 @@ programModifyPATH progL = return . Just .  maybe id const
 instance Eq a => Eq (Program a) where
     x == y          =      viewA progBin  x == viewA progBin  y
                         && viewA progArgs x == viewA progArgs y
+instance Arguments a => Semigroup (Program a) where
+    x <> y          = setA progPid (viewA progPid x) y
 instance Arguments a => Monoid (Program a) where
-    x `mappend` y   = setA progPid (viewA progPid x) y
+    mappend         = (<>)
     mempty          = defaultProgram
 instance (Arguments a, Typeable a, Show a, Read a, Eq a)
          => ProcessClass (Program a) where

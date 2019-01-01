@@ -8,7 +8,7 @@ user-message: ! 'Warning: Specified resolver could not satisfy all dependencies.
 '
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-8.24
+resolver: lts-12.20
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -19,12 +19,12 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/sgf-dma/xmonad-contrib.git
-    commit: b1e4f9ea916c31678058d90b0b996dbaa10efc3e
+    commit: 0c084d3d22929d598917442466f2db6e621e1c57
   extra-dep: true
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- X11-xft-0.3.1
 - xmonad-entryhelper-0.1.0.0
+- xmonad-0.15
 
 # Override default flag values for local packages and extra-deps
 flags: {}
