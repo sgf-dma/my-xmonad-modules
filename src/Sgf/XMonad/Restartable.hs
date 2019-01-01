@@ -57,6 +57,7 @@ import Data.List
 import Data.Maybe
 import Data.Typeable
 import Data.Monoid
+import Data.String.Transform
 import Control.Monad
 import Control.Exception (try, IOException)
 import Control.Concurrent (threadDelay)
@@ -325,6 +326,9 @@ data NoArgs         = NoArgs
 instance Arguments NoArgs where
     serialize _     = return []
     defaultArgs     = NoArgs
+instance ToString a => Arguments [a] where
+    serialize x     = return (map toString x)
+    defaultArgs     = []
 
 -- Default program providing set of fields needed for regular program and
 -- default runP implementation.  Note: when using newtypes around Program

@@ -19,7 +19,6 @@ packages:
   extra-dep: true
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- X11-xft-0.3.1
 - xmonad-entryhelper-0.1.0.0
 - xmonad-0.15
 
