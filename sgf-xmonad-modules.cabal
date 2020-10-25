@@ -1,0 +1,68 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: efea20913fde90c35c5a7754803bdfea6ce87fa6eafcabba8221cf79e2d9abf1
+
+name:           sgf-xmonad-modules
+version:        1.5.0
+synopsis:       sgf's xmonad modules
+category:       Graphics
+homepage:       https://github.com/sgf-dma/sgf-xmonad-modules#readme
+bug-reports:    https://github.com/sgf-dma/sgf-xmonad-modules/issues
+author:         sgf
+maintainer:     sgf.dma@gmail.com
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/sgf-dma/sgf-xmonad-modules
+
+library
+  exposed-modules:
+      Sgf.XMonad.Config
+      Sgf.XMonad.Docks
+      Sgf.XMonad.Docks.Trayer
+      Sgf.XMonad.Docks.Xmobar
+      Sgf.XMonad.Fullscreen
+      Sgf.XMonad.Lock
+      Sgf.XMonad.Pulse
+      Sgf.XMonad.Restartable
+      Sgf.XMonad.Restartable.Feh
+      Sgf.XMonad.Restartable.Firefox
+      Sgf.XMonad.Restartable.Shell
+      Sgf.XMonad.Restartable.XTerm
+      Sgf.XMonad.Trace
+      Sgf.XMonad.Util.EntryHelper
+      Sgf.XMonad.Util.EZConfig
+      Sgf.XMonad.Util.Run
+      Sgf.XMonad.VNC
+      Sgf.XMonad.Workspaces
+      Sgf.XMonad.X11
+  other-modules:
+      Paths_sgf_xmonad_modules
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  build-depends:
+      X11
+    , base
+    , containers
+    , directory
+    , filepath
+    , mtl
+    , process
+    , sgf-haskell-common
+    , string-transform
+    , tagged
+    , transformers
+    , unix
+    , utf8-string
+    , xmonad
+    , xmonad-contrib
+    , xmonad-entryhelper
+  default-language: Haskell2010
