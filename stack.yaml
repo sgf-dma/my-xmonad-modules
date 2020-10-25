@@ -13,13 +13,13 @@ resolver: lts-15.3
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
-- extra-deps/sgf-haskell-common
-- extra-deps/xmonad-contrib
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - xmonad-entryhelper-0.1.0.0
 - xmonad-0.15
+- extra-deps/sgf-haskell-common
+- extra-deps/xmonad-contrib
 
 # Override default flag values for local packages and extra-deps
 flags: {}
